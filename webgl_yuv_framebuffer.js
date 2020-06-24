@@ -35,6 +35,7 @@ filter.initialize = function() {
   pck_tx = gl.createTexture('vidTx');
   pck_tx.pbo = false;
   buffers = initBuffers(gl);
+  //txt_and_buf = createTextureAndFramebuffer(gl, width/10, height/10);
 }
 
 filter.configure_pid = function(pid) {
@@ -50,7 +51,9 @@ filter.configure_pid = function(pid) {
   let n_width = pid.get_prop('Width');
   let n_height = pid.get_prop('Height');
   let pf = pid.get_prop('PixelFormat');
+  
   if ((n_width != width) || (n_height != height)) {
+    
     width = n_width;
     height = n_height;
     gl.resize(width, height);
@@ -86,7 +89,7 @@ filter.process = function()
   if (!programInfo2) programInfo2 = setupProgram(gl, vsSource, fsSource2, 'txt1');
   // Draw the scene
   drawScene(gl, programInfo1, buffers, 1/10, 1);
-  drawScene(gl, programInfo2, buffers, 1, 2);
+  drawScene(gl, programInfo2, buffers, 1.27, 2);
 	gl.flush();
 	gl.activate(false);
 
@@ -137,7 +140,7 @@ uniform sampler2D txt1;
 
 void main(void) {
   vec2 tx= vTextureCoord;
-  tx.y = 1.0 - tx.y;
+  tx.y =tx.y;
   vec4 vid = texture2D(txt1, tx);
   gl_FragColor = vid;
 }
@@ -212,7 +215,11 @@ function drawScene(gl, programInfo, buffers, alpha, step) {
   let frameBuff = null;
   gl.viewport(0, 0, alpha*width, alpha*height);
   
-  if (step == 1){frameBuff = buffers.txt_and_buf.fb;}
+  if (step == 1){
+    frameBuff = buffers.txt_and_buf.fb;
+    //frameBuff =txt_and_buf.fb;
+
+  }
   else {frameBuff = null;}
   gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuff);
   gl.clearColor(0.8, 0.4, 0.8, 1.0);
@@ -276,12 +283,14 @@ function drawScene(gl, programInfo, buffers, alpha, step) {
   gl.uniform1i(programInfo.uniformLocations.tx, 0);
   if (step == 1)
   {
-    gl.activeTexture(gl.TEXTURE0);
+    //gl.activeTexture(gl.TEXTURE0);
+    //gl.activeTexture(gl.TEXTURE0.nb_textures);
     gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   }
   else{
-    gl.activeTexture(gl.TEXTURE0+pck_tx.nb_textures);
+    //gl.activeTexture(gl.TEXTURE0.nb_textures);
     gl.bindTexture(gl.TEXTURE_2D, buffers.txt_and_buf.tex);
+    //gl.bindTexture(gl.TEXTURE_2D,txt_and_buf.tex);
   }
   
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
