@@ -125,35 +125,42 @@ const fsSource = `
 varying vec2 vTextureCoord;
 
 uniform sampler2D vidTx;
-//uniform sampler2D imgTx;
+uniform float step_w ;
+uniform float step_h;
 
-const float kernel[9] = { 1.0/16.0, 2.0/16.0, 1.0/16.0,
+const float kernel[9] = float[9](1.0/16.0, 2.0/16.0, 1.0/16.0,
         2.0/16.0, 4.0/16.0, 2.0/16.0,
-        1.0/16.0, 2.0/16.0, 1.0/16.0 };
+        1.0/16.0, 2.0/16.0, 1.0/16.0 );
 
 
-uniform float u_width;
-uniform float u_height;
 
-const float step_w = 1.0/(u_width);
-const float step_h = 1.0/(u_height);
 
-const vec2 offset[9] = { vec2(-step_w, -step_h), vec2(0.0, -step_h), vec2(step_w, -step_h), 
+const vec2 offset[9] = offset[9](vec2(-step_w, -step_h), vec2(0.0, -step_h), vec2(step_w, -step_h), 
         vec2(-step_w, 0.0), vec2(0.0, 0.0), vec2(step_w, 0.0), 
-        vec2(-step_w, step_h), vec2(0.0, step_h), vec2(step_w, step_h) };
+        vec2(-step_w, step_h), vec2(0.0, step_h), vec2(step_w, step_h));
+
+
+        
+
+
+
+
+
+       
 
 void main(void) {
   int i = 0;
   vec4 sum = vec4(0.0);
   vec2 tx= vTextureCoord;
   tx.y = 1.0 - tx.y;
-  for( i=0; i<9; i++ )
-     {
-      vec4 tmp = texture2D(vidTx, tx + offset[i]);
-      sum += tmp * kernel[i];
-     }
+
   
-  gl_FragColor = sum;
+  vec4 vid = texture2D(vidTx,tx);  
+ 
+  
+  vid.rgb=vid.rgb;
+
+  gl_FragColor = vid;
 }
 `;
 
@@ -173,8 +180,8 @@ function setupProgram(gl, vsSource, fsSource)
       modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
       txVid: gl.getUniformLocation(shaderProgram, 'vidTx'),
       
-      swidth: gl.getUniformLocation(shaderProgram, 'u_width'),
-      sheight: gl.getUniformLocation(shaderProgram, 'u_height'),
+      w_step: gl.getUniformLocation(shaderProgram, 'step_w'),
+      h_step: gl.getUniformLocation(shaderProgram, 'step_h'),
     },
   };
 }
@@ -248,7 +255,7 @@ function drawScene(gl, programInfo, buffers) {
   //const modelViewMatrix = new Matrix().rotate(0, 1, 0, Math.PI/4);
 
   const modelViewMatrix = new Matrix();
-  let coef = (nb_frames%100)/100.0;
+  //let coef = (nb_frames%100)/100.0;
 
   //const projectionMatrix= new Matrix(1, 0, 0, 0, 1, 0, 0, 0, 1);
   //bind vertex position
@@ -288,8 +295,8 @@ function drawScene(gl, programInfo, buffers) {
   gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix.m);
   gl.uniformMatrix4fv( programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix.m);
   
-  gl.uniform1f(programInfo.uniformLocations.swidth,width);
-  gl.uniform1f(programInfo.uniformLocations.sheight,height);
+  gl.uniform1f(programInfo.uniformLocations.h_step,(1/height));
+  gl.uniform1f(programInfo.uniformLocations.w_step,(1/width));
   //set image
   //gl.activeTexture(gl.TEXTURE0);
   //gl.bindTexture(gl.TEXTURE_2D, texture);
