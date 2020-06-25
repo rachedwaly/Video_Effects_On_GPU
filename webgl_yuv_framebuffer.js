@@ -24,6 +24,7 @@ let nb_frames=0;
 let pix_fmt = '';
 let programInfo1 = null;
 let programInfo2 = null;
+let txt_and_buf = null;
 
 let gl = null;
 let pck_tx = null;
@@ -35,7 +36,6 @@ filter.initialize = function() {
   pck_tx = gl.createTexture('vidTx');
   pck_tx.pbo = false;
   buffers = initBuffers(gl);
-  //txt_and_buf = createTextureAndFramebuffer(gl, width/10, height/10);
 }
 
 filter.configure_pid = function(pid) {
@@ -51,9 +51,7 @@ filter.configure_pid = function(pid) {
   let n_width = pid.get_prop('Width');
   let n_height = pid.get_prop('Height');
   let pf = pid.get_prop('PixelFormat');
-  
   if ((n_width != width) || (n_height != height)) {
-    
     width = n_width;
     height = n_height;
     gl.resize(width, height);
@@ -63,6 +61,7 @@ filter.configure_pid = function(pid) {
     programInfo1 = null;
     pck_tx.reconfigure();
   }
+  txt_and_buf = createTextureAndFramebuffer(gl, width/2, height/2);
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }
 
@@ -88,20 +87,20 @@ filter.process = function()
   if (!programInfo1) programInfo1 = setupProgram(gl, vsSource, fsSource1, 'vidTx');
   if (!programInfo2) programInfo2 = setupProgram(gl, vsSource, fsSource2, 'txt1');
   // Draw the scene
-  drawScene(gl, programInfo1, buffers, 1/10, 1);
-  drawScene(gl, programInfo2, buffers, 1.27, 2);
-	gl.flush();
-	gl.activate(false);
+  drawScene(gl, programInfo1, buffers, 1/2, 1);
+  drawScene(gl, programInfo2, buffers, 1, 2);
+  gl.flush();
+  gl.activate(false);
 
-	//create packet from webgl framebuffer
-	let opck = opid.new_packet(gl, () => { filter.frame_pending=false; }, filter.depth );
-	this.frame_pending = true;
+  //create packet from webgl framebuffer
+  let opck = opid.new_packet(gl, () => { filter.frame_pending=false; }, filter.depth );
+  this.frame_pending = true;
   opck.copy_props(ipck);
 
   ipid.drop_packet();
-	opck.send();
+  opck.send();
   nb_frames++;
-	return GF_OK;
+  return GF_OK;
 }
 
 
@@ -140,7 +139,6 @@ uniform sampler2D txt1;
 
 void main(void) {
   vec2 tx= vTextureCoord;
-  tx.y =tx.y;
   vec4 vid = texture2D(txt1, tx);
   gl_FragColor = vid;
 }
@@ -199,14 +197,11 @@ function initBuffers(gl) {
     0.0,  1.0,
   ];
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
-
-  const txt_and_buf = createTextureAndFramebuffer(gl, width/10, height/10);
   
   return {
     position: positionBuffer,
     indices: indexBuffer,
     textureCoord: textureCoordBuffer,
-    txt_and_buf : txt_and_buf,
   };
 }
 
@@ -215,11 +210,7 @@ function drawScene(gl, programInfo, buffers, alpha, step) {
   let frameBuff = null;
   gl.viewport(0, 0, alpha*width, alpha*height);
   
-  if (step == 1){
-    frameBuff = buffers.txt_and_buf.fb;
-    //frameBuff =txt_and_buf.fb;
-
-  }
+  if (step == 1){frameBuff = txt_and_buf.fb;}
   else {frameBuff = null;}
   gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuff);
   gl.clearColor(0.8, 0.4, 0.8, 1.0);
@@ -283,14 +274,12 @@ function drawScene(gl, programInfo, buffers, alpha, step) {
   gl.uniform1i(programInfo.uniformLocations.tx, 0);
   if (step == 1)
   {
-    //gl.activeTexture(gl.TEXTURE0);
-    //gl.activeTexture(gl.TEXTURE0.nb_textures);
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   }
   else{
-    //gl.activeTexture(gl.TEXTURE0.nb_textures);
-    gl.bindTexture(gl.TEXTURE_2D, buffers.txt_and_buf.tex);
-    //gl.bindTexture(gl.TEXTURE_2D,txt_and_buf.tex);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, txt_and_buf.tex);
   }
   
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
@@ -300,10 +289,10 @@ function drawScene(gl, programInfo, buffers, alpha, step) {
   gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
 }
 
-function createTextureAndFramebuffer(gl, width, height) {
+function createTextureAndFramebuffer(gl, w, h) {
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
