@@ -26,16 +26,12 @@ let programInfo = null;
 
 let gl = null;
 let pck_tx = null;
-let img_tx = null;
 let buffers = null;
 
 filter.initialize = function() {
 
   gl = new WebGLContext(width, height, {depth: filter.depth ? "texture" : true, primary: use_primary});
   pck_tx = gl.createTexture('vidTx');
-  img_tx = gl.createTexture('imgTx');
-  img_tx.upload(new Texture("../auxiliary_files/logo.png", true));
-  //img_tx.upload(new Texture("../auxiliary_files/logo.jpg", true));
   pck_tx.pbo = false;
   buffers = initBuffers(gl);
 }
@@ -278,10 +274,6 @@ function drawScene(gl, programInfo, buffers) {
   gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   //this one is ignored for gpac named textures, just kept to make sure we don't break usual webGL programming 
   gl.uniform1f(programInfo.uniformLocations.txVid, 0);
-
-  //set image texture
-  gl.activeTexture(gl.TEXTURE0+pck_tx.nb_textures);
-  gl.bindTexture(gl.TEXTURE_2D, img_tx);
 
   //bind indices and draw
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
