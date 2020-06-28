@@ -22,7 +22,9 @@ let ipid=null;
 let opid=null;
 let nb_frames=0;
 let pix_fmt = '';
-let programInfo = null;
+let programInfo1 = null;
+let programInfo2 = null;
+let txt_and_buf = null;
 
 let gl = null;
 let pck_tx = null;
@@ -56,9 +58,10 @@ filter.configure_pid = function(pid) {
   }
   if (pf != pix_fmt) {
     pix_fmt = pf;
-    programInfo = null;
+    programInfo1 = null;
     pck_tx.reconfigure();
   }
+  txt_and_buf = createTextureAndFramebuffer(gl, width, height);
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }
 
@@ -81,22 +84,23 @@ filter.process = function()
   gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   gl.texImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, ipck);
 
-  if (!programInfo) programInfo = setupProgram(gl, vsSource, fsSource);
-
+  if (!programInfo1) programInfo1 = setupProgram(gl, vsSource, fsSource1, 'vidTx');
+  if (!programInfo2) programInfo2 = setupProgram(gl, vsSource, fsSource2, 'txt1');
   // Draw the scene
-  drawScene(gl, programInfo, buffers);
-	gl.flush();
-	gl.activate(false);
+  drawScene(gl, programInfo1, buffers, 1, 1);
+  drawScene(gl, programInfo2, buffers, 1, 2);
+  gl.flush();
+  gl.activate(false);
 
-	//create packet from webgl framebuffer
-	let opck = opid.new_packet(gl, () => { filter.frame_pending=false; }, filter.depth );
-	this.frame_pending = true;
+  //create packet from webgl framebuffer
+  let opck = opid.new_packet(gl, () => { filter.frame_pending=false; }, filter.depth );
+  this.frame_pending = true;
   opck.copy_props(ipck);
 
   ipid.drop_packet();
-	opck.send();
+  opck.send();
   nb_frames++;
-	return GF_OK;
+  return GF_OK;
 }
 
 
@@ -117,23 +121,31 @@ void main() {
 `;
 
 
-const fsSource = `
+const fsSource1 = `
 varying vec2 vTextureCoord;
-uniform float u_coef;
 uniform sampler2D vidTx;
 
 void main(void) {
   vec2 tx= vTextureCoord;
   tx.y = 1.0 - tx.y;
   vec4 vid = texture2D(vidTx, tx);
-  vid.rgb=u_coef*vid.rgb;
+  gl_FragColor = vid;
+}
+`;
+
+const fsSource2 = `
+varying vec2 vTextureCoord;
+uniform sampler2D txt1;
+
+void main(void) {
+  vec2 tx= vTextureCoord;
+  vec4 vid = texture2D(txt1, tx);
   gl_FragColor = vid;
 }
 `;
 
 
-
-function setupProgram(gl, vsSource, fsSource)
+function setupProgram(gl, vsSource, fsSource, text_name)
 {
   const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
   return {
@@ -145,14 +157,10 @@ function setupProgram(gl, vsSource, fsSource)
     uniformLocations: {
       projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
       modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
-      txVid: gl.getUniformLocation(shaderProgram, 'vidTx'),
-      coef: gl.getUniformLocation(shaderProgram, 'u_coef'),
-
+      tx: gl.getUniformLocation(shaderProgram, text_name),
     },
   };
 }
-
-
 
 
 
@@ -163,9 +171,10 @@ function initBuffers(gl) {
   const positions = [
     // Front face
     -1.0, -1.0,
-     1.0, -1.0,
-     1.0,  1.0,
-    -1.0,  1.0,
+     1.0, -1.0, 
+     1.0,  1.0, 
+    -1.0,  1.0, 
+
   ];
 
 
@@ -175,7 +184,6 @@ function initBuffers(gl) {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
   const indices = [
     0,  1,  2,      0,  2,  3,
-
   ];
   gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
 
@@ -187,11 +195,9 @@ function initBuffers(gl) {
     1.0,  0.0,
     1.0,  1.0,
     0.0,  1.0,
-
-    
   ];
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
-
+  
   return {
     position: positionBuffer,
     indices: indexBuffer,
@@ -200,30 +206,29 @@ function initBuffers(gl) {
 }
 
 
-function drawScene(gl, programInfo, buffers) {
-  gl.viewport(0, 0, width, height);
+function drawScene(gl, programInfo, buffers, alpha, step) {
+  let frameBuff = null;
+  gl.viewport(0, 0, alpha*width, alpha*height);
+  
+  if (step == 1){frameBuff = txt_and_buf.fb;}
+  else {frameBuff = null;}
+  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuff);
   gl.clearColor(0.8, 0.4, 0.8, 1.0);
-  gl.clearDepth(1);
+  //gl.clearDepth(1);
   gl.disable(gl.DEPTH_TEST);
-  // gl.enable(gl.BLEND);
-  // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  // gl.depthFunc(gl.LEQUAL);
+  //gl.enable(gl.BLEND);
+  //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  //gl.depthFunc(gl.LEQUAL);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
-  const fieldOfView = Math.PI/4;  // in radians
+  const fieldOfView = Math.PI / 4;   // in radians
   const aspect = width / height;
-  const zNear = -1;
+  const zNear = -2;
   const zFar = 100.0;
-  //const projectionMatrix = new Matrix().perspective(fieldOfView, aspect, zNear, zFar);
-  const projectionMatrix = new Matrix().ortho(-1,1,-1,1,-1,100);
-  //const projectionMatrix= new Matrix().inverse();
-  //const modelViewMatrix = new Matrix().rotate(0, 1, 0, nb_frames*Math.PI/100);
-  //const modelViewMatrix = new Matrix().rotate(0, 1, 0, Math.PI/4);
+  const projectionMatrix = new Matrix().ortho(-1, 1, -1, 1, zNear, zFar);
 
   const modelViewMatrix = new Matrix();
-  let coef = (nb_frames%100)/100.0;
 
-  //const projectionMatrix= new Matrix(1, 0, 0, 0, 1, 0, 0, 0, 1);
   //bind vertex position
   {
     const numComponents = 2;
@@ -260,26 +265,42 @@ function drawScene(gl, programInfo, buffers) {
   //set uniforms
   gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix.m);
   gl.uniformMatrix4fv( programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix.m);
-  gl.uniform1f(programInfo.uniformLocations.coef,coef);
   //set image
-  //gl.activeTexture(gl.TEXTURE0);
-  //gl.bindTexture(gl.TEXTURE_2D, texture);
-  //gl.uniform1i(programInfo.uniformLocations.txLogo, 0);
-
-
-  //set video texture
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, pck_tx);
-  //this one is ignored for gpac named textures, just kept to make sure we don't break usual webGL programming 
-  gl.uniform1f(programInfo.uniformLocations.txVid, 0);
-
-  //bind indices and draw
+/*  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.uniform1i(programInfo.uniformLocations.txLogo, 0);
+*/
+  
+  gl.uniform1i(programInfo.uniformLocations.tx, 0);
+  if (step == 1)
+  {
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, pck_tx);
+  }
+  else{
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, txt_and_buf.tex);
+  }
+  
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
   const vertexCount = 6;
   const type = gl.UNSIGNED_SHORT;
   const offset = 0;
   gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
-  
+}
+
+function createTextureAndFramebuffer(gl, w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(
+     gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  return {tex: tex, fb: fb};
 }
 
 function loadTexture(gl) {
