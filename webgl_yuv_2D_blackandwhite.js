@@ -14,7 +14,7 @@ filter.set_cap({id: "StreamType", value: "Video", inout: true} );
 filter.set_cap({id: "CodecID", value: "raw", inout: true} );
 
 filter.set_arg({ name: "depth", desc: "output depth rather than color", type: GF_PROP_BOOL, def: "false"} );
-let txt_and_buf = null;
+
 let use_primary = false;
 let width=600;
 let height=400;
@@ -22,31 +22,11 @@ let ipid=null;
 let opid=null;
 let nb_frames=0;
 let pix_fmt = '';
-
-
-let programInfo1 = null;
-let programInfo2 = null;
+let programInfo = null;
 
 let gl = null;
 let pck_tx = null;
 let buffers = null;
-
-let step_h=10.0/height;
-let step_w=10.0/width;
-
-let kernels=[[1.0/16.0, 2.0/16.0, 1.0/16.0,
-        2.0/16.0, 4.0/16.0, 2.0/16.0,
-        1.0/16.0, 2.0/16.0, 1.0/16.0 ],[
-        -1.0/6.0, 0.0/16.0, 1.0/6.0,
-        -1.0/16.0, 0.0/16.0, 1.0/6.0,
-        -1.0/16.0, 0.0/16.0, 1.0/6.0 ]]
-
-let offset1=[-step_w, -step_h, 0.0, -step_h, step_w, -step_h, 
-        -step_w, 0.0, 0.0, 0.0, step_w, 0.0, 
-        -step_w, step_h, 0.0, step_h, step_w, step_h];
-
-let declaration_effets=['vec3 effet0(vec3 k){float average = 0.2126 * k.r + 0.7152 * k.g + 0.0722 * k.b;return vec3(average, average, average);	}',`vec3 effet1(vec3 b){return u_coef*b.rgb;}`];
-let choice=[0,1];
 
 filter.initialize = function() {
 
@@ -76,10 +56,9 @@ filter.configure_pid = function(pid) {
   }
   if (pf != pix_fmt) {
     pix_fmt = pf;
-    programInfo1 = null;
+    programInfo = null;
     pck_tx.reconfigure();
   }
-  txt_and_buf = createTextureAndFramebuffer(gl, width, height);
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }
 
@@ -102,26 +81,22 @@ filter.process = function()
   gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   gl.texImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, ipck);
 
-  if (!programInfo1) programInfo1 = setupProgram(gl, vsSource, fsSource1, 'vidTx');
-  if (!programInfo2) programInfo2 = setupProgram(gl, vsSource, fsSource2, 'txt1');
-  // Draw the scene
-  drawScene(gl, programInfo1, buffers, 1);
-  drawScene(gl, programInfo2, buffers, 2);
+  if (!programInfo) programInfo = setupProgram(gl, vsSource, fsSource);
 
   // Draw the scene
-  
-	gl.flush();
-	gl.activate(false);
- 
-	//create packet from webgl framebuffer
-	let opck = opid.new_packet(gl, () => { filter.frame_pending=false; }, filter.depth );
-	this.frame_pending = true;
+  drawScene(gl, programInfo, buffers);
+  gl.flush();
+  gl.activate(false);
+
+  //create packet from webgl framebuffer
+  let opck = opid.new_packet(gl, () => { filter.frame_pending=false; }, filter.depth );
+  this.frame_pending = true;
   opck.copy_props(ipck);
 
   ipid.drop_packet();
-	opck.send();
+  opck.send();
   nb_frames++;
-	return GF_OK;
+  return GF_OK;
 }
 
 
@@ -141,67 +116,25 @@ void main() {
 }
 `;
 
-const effet=effets();  //`vec3 effet1(vec3 b){return u_coef*b.rgb;}`
-//const effet1= `vec3 effet1(vec3 b){return u_coef*b.rgb;}`;
-//const effet=
-const FragColor='gl_FragColor = vid;}';
-const main=`void main(void) {
-  vec2 tx= vTextureCoord;
-  //tx.y = 1.0 - tx.y;
-  vec4 vid = texture2D(vidTx, tx);`
 
-const app=apply();
-//const unfiorms=;
-const fsSource2 = `
+const fsSource = `
 varying vec2 vTextureCoord;
 uniform float u_coef;
 uniform sampler2D vidTx;
-
-`+effet+main+app+FragColor;
-
-
-const fsSource1 = `
-varying vec2 vTextureCoord;
-
-uniform sampler2D vidTx;
-uniform float[9] u_kernell;
-uniform vec2[9] u_offset11;
-
+//uniform sampler2D imgTx;
 
 void main(void) {
-  int i = 0;
-  vec4 sum = vec4(0.0);
   vec2 tx= vTextureCoord;
   tx.y = 1.0 - tx.y;
-
-  
-   
- 
-  for( i=0; i<9; i++ )
-  {
-    vec4 tmp = texture2D(vidTx, tx + u_offset11[i]);
-    sum.rgb += tmp.rgb * u_kernell[i];
-  }
-  
-  sum.a=1.0;
-
-  gl_FragColor = sum;
+  vec4 vid = texture2D(vidTx, tx);
+  vid.rgb=vec3 ((vid.r+vid.g+vid.b)/3);
+  gl_FragColor = vid;
 }
 `;
 
 
-// void main(void) {
-//   vec2 tx= vTextureCoord;
-//   tx.y = 1.0 - tx.y;
-//   vec4 vid = texture2D(vidTx, tx);
-//   vid.rgb=zall(vid.rgb);
-//   gl_FragColor = vid;
-// }
-// `;
 
-
-
-function setupProgram(gl, vsSource, fsSource,text_name)
+function setupProgram(gl, vsSource, fsSource)
 {
   const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
   return {
@@ -215,9 +148,6 @@ function setupProgram(gl, vsSource, fsSource,text_name)
       modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
       txVid: gl.getUniformLocation(shaderProgram, 'vidTx'),
       coef: gl.getUniformLocation(shaderProgram, 'u_coef'),
-      tx: gl.getUniformLocation(shaderProgram, text_name),
-      kernell: gl.getUniformLocation(shaderProgram, 'u_kernell'),
-      offset11: gl.getUniformLocation(shaderProgram, 'u_offset11'),
 
     },
   };
@@ -230,12 +160,12 @@ function setupProgram(gl, vsSource, fsSource,text_name)
 function initBuffers(gl) {
   const positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  
+
   const positions = [
     // Front face
     -1.0, -1.0,
-     1.0, -1.0,
-     1.0,  1.0,
+    1.0, -1.0,
+    1.0,  1.0,
     -1.0,  1.0,
   ];
 
@@ -259,7 +189,7 @@ function initBuffers(gl) {
     1.0,  1.0,
     0.0,  1.0,
 
-    
+
   ];
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoordinates), gl.STATIC_DRAW);
 
@@ -271,18 +201,14 @@ function initBuffers(gl) {
 }
 
 
-function drawScene(gl, programInfo, buffers,step) {
+function drawScene(gl, programInfo, buffers) {
   gl.viewport(0, 0, width, height);
-  let frameBuff = null;
-  if (step == 1){frameBuff = txt_and_buf.fb;}
-  else {frameBuff = null;}
-  gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuff);
-
   gl.clearColor(0.8, 0.4, 0.8, 1.0);
   gl.clearDepth(1);
   gl.disable(gl.DEPTH_TEST);
-  
-  
+  // gl.enable(gl.BLEND);
+  // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  // gl.depthFunc(gl.LEQUAL);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
   const fieldOfView = Math.PI/4;  // in radians
@@ -297,6 +223,7 @@ function drawScene(gl, programInfo, buffers,step) {
 
   const modelViewMatrix = new Matrix();
   let coef = (nb_frames%100)/100.0;
+
   //const projectionMatrix= new Matrix(1, 0, 0, 0, 1, 0, 0, 0, 1);
   //bind vertex position
   {
@@ -335,21 +262,17 @@ function drawScene(gl, programInfo, buffers,step) {
   gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix.m);
   gl.uniformMatrix4fv( programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix.m);
   gl.uniform1f(programInfo.uniformLocations.coef,coef);
-  
-  if (step==1){
-  gl.uniform1fv(programInfo.uniformLocations.kernell,kernels[1]);
-  gl.uniform2fv(programInfo.uniformLocations.offset11,offset1);}
+  //set image
+  //gl.activeTexture(gl.TEXTURE0);
+  //gl.bindTexture(gl.TEXTURE_2D, texture);
+  //gl.uniform1i(programInfo.uniformLocations.txLogo, 0);
 
-  gl.uniform1i(programInfo.uniformLocations.tx, 0);
-  if (step == 1)
-  {
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, pck_tx);
-  }
-  else{
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, txt_and_buf.tex);
-  }
+
+  //set video texture
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, pck_tx);
+  //this one is ignored for gpac named textures, just kept to make sure we don't break usual webGL programming
+  gl.uniform1f(programInfo.uniformLocations.txVid, 0);
 
   //bind indices and draw
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
@@ -357,7 +280,7 @@ function drawScene(gl, programInfo, buffers,step) {
   const type = gl.UNSIGNED_SHORT;
   const offset = 0;
   gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
-  
+
 }
 
 function loadTexture(gl) {
@@ -404,41 +327,4 @@ function loadShader(gl, type, source) {
     return null;
   }
   return shader;
-}
-
-function createTextureAndFramebuffer(gl, w, h) {
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  const fb = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
-  gl.framebufferTexture2D(
-     gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-  return {tex: tex, fb: fb};
-}
-function uniforms(){
-
-}
-
-function effets(){
-var s='';
-for (var i=0;i<choice.length;i++){
-  s+=declaration_effets[choice[i]];
-}
-return s;
-
-}
-
-
-
-function apply(){
-var s='';
-for (var i=0;i<choice.length;i++){
-
-  s+='vid.rgb=effet'+choice[i].toString()+'(vid.rgb);'
-}
-return s;
 }
