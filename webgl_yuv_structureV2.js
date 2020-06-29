@@ -10,6 +10,7 @@ filter.set_author("GPAC team");
 filter.set_help("This filter provides testing of gpac's WebGL bindings");
 
 //raw video in and out
+
 filter.set_cap({id: "StreamType", value: "Video", inout: true} );
 filter.set_cap({id: "CodecID", value: "raw", inout: true} );
 
@@ -55,7 +56,7 @@ let effects_list=[
         }`,
         ];
 
-let index_slices = [[0,2],[2,4]];  // on décompose la liste des effet selon les effets qui nécessite un FBO
+let index_slices = [[0,3],[3,4]];  // on décompose la liste des effets selon les effets qui nécessitent un FBO
                                     // dans ce cas effet2 nécessite un FBO
                                     // on crée donc un FBO pour stocker le res de effet0+effet1 et on lit ce résultat 
 
@@ -106,11 +107,11 @@ filter.configure_pid = function(pid) {
     pck_tx.reconfigure();
   }
 
-  if (index_slices.length == 1)
+  if (index_slices.length == 2)
     FBOs = { 
       FBO0 : createTextureAndFramebuffer(gl, width, height),
     }
-  else if  (index_slices.length > 1)
+  else if  (index_slices.length > 2)
     FBOs = { 
       FBO0 : createTextureAndFramebuffer(gl, width, height),
       FBO1 : createTextureAndFramebuffer(gl, width, height),
@@ -142,8 +143,11 @@ filter.process = function()
   {
     programs_Info[0] = setupProgram(gl, vsSource, fragment_shaders[0],'vidTx');
     for (var i=1;i<index_slices.length; i++){
-      programs_Info[i-1] = setupProgram(gl, vsSource, fragment_shaders[i],'tex_tmp');
+      programs_Info[i] = setupProgram(gl, vsSource, fragment_shaders[i],'tex_tmp');
     }
+    for (var i=0;i<index_slices.length; i++){
+      print(programs_Info[i].shader)
+    } 
   } 
 
   // indice in  texture (-1:video, 0:FBOs[0], 1:FBOs[1])
@@ -230,8 +234,6 @@ fragment_shaders.push(create_fs(effects_list, index_slices[0] , 'vidTx'));
 for (var i=1;i<index_slices.length; i++){
     fragment_shaders.push(create_fs(effects_list, index_slices[i] , 'tex_tmp')); 
 }
-print(fragment_shaders);
-
 
 function setupProgram(gl, vsSource, fsSource, sampler2D_name)
 {
@@ -239,6 +241,7 @@ function setupProgram(gl, vsSource, fsSource, sampler2D_name)
   const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
   return {
     program: shaderProgram,
+    shader: fsSource,
     attribLocations: {
       vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
       textureCoord: gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
