@@ -34,17 +34,17 @@ let FBOs = null;
 let effects_list=[
         `vec3 effet0(vec3 b)
         {
-          b.r = 1.0 -b.r;
+          b.r = b.r;
           return b;	
         }`,
         `vec3 effet1(vec3 b)
         {
-          b.g = b.g;
+          b.g = 0.5;
           return b;
         }`,
         `vec3 effet2(vec3 b)
         {
-          b.b = 1.0 - b.b; 
+          b.b = b.b; 
           return b;
         }`,
         `vec3 effet3(vec3 b)
@@ -56,7 +56,7 @@ let effects_list=[
         }`,
         ];
 
-let index_slices = [[0,3],[3,4]];  // on décompose la liste des effets selon les effets qui nécessitent un FBO
+let index_slices = [[0,1], [1,2], [2,4]];  // on décompose la liste des effets selon les effets qui nécessitent un FBO
                                     // dans ce cas effet2 nécessite un FBO
                                     // on crée donc un FBO pour stocker le res de effet0+effet1 et on lit ce résultat 
 
@@ -139,17 +139,16 @@ filter.process = function()
   gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   gl.texImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, ipck);
 
-  if (programs_Info[0] == null && programs_Info[1] == null)
+  if (programs_Info[0] == null)
   {
     programs_Info[0] = setupProgram(gl, vsSource, fragment_shaders[0],'vidTx');
-    for (var i=1;i<index_slices.length; i++){
-      programs_Info[i] = setupProgram(gl, vsSource, fragment_shaders[i],'tex_tmp');
-    }
-    for (var i=0;i<index_slices.length; i++){
-      print(programs_Info[i].shader)
-    } 
   } 
-
+  for (var i=1;i<index_slices.length; i++){
+    if (programs_Info[i] == null)
+    {
+      programs_Info[i] = setupProgram(gl, vsSource, fragment_shaders[i],'txt1');
+    }
+  }
   // indice in  texture (-1:video, 0:FBOs[0], 1:FBOs[1])
   // indice out texture (-1:ecran, 0:FBOs[0], 1:FBOs[1])
   let in_texture = -1;
@@ -209,10 +208,17 @@ function create_fs(effects_list, index_slice, sampler2D_name){
     s += effects_list[i];
   }
   
-  s+= `
+  s += `
   void main(void) {
   vec2 tx_coord = vTextureCoord;
-  tx_coord.y = 1.0 - tx_coord.y;
+  `;
+  
+  if (sampler2D_name == 'vidTx')
+    s += `
+    tx_coord.y = 1.0 - tx_coord.y;
+    `;
+  
+  s += `
   vec4 vid = texture2D(`+sampler2D_name+`, tx_coord);
   `;
 
@@ -232,7 +238,7 @@ const fragment_shaders = [];
 
 fragment_shaders.push(create_fs(effects_list, index_slices[0] , 'vidTx')); 
 for (var i=1;i<index_slices.length; i++){
-    fragment_shaders.push(create_fs(effects_list, index_slices[i] , 'tex_tmp')); 
+    fragment_shaders.push(create_fs(effects_list, index_slices[i] , 'txt1')); 
 }
 
 function setupProgram(gl, vsSource, fsSource, sampler2D_name)
