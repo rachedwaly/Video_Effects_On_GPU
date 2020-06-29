@@ -61,7 +61,7 @@ filter.configure_pid = function(pid) {
     programInfo1 = null;
     pck_tx.reconfigure();
   }
-  txt_and_buf = createTextureAndFramebuffer(gl, width, height);
+  txt_and_buf = createTextureAndFramebuffer(gl, 2*width, 2*height);
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }
 
@@ -87,8 +87,8 @@ filter.process = function()
   if (!programInfo1) programInfo1 = setupProgram(gl, vsSource, fsSource1, 'vidTx');
   if (!programInfo2) programInfo2 = setupProgram(gl, vsSource, fsSource2, 'txt1');
   // Draw the scene
-  drawScene(gl, programInfo1, buffers, 1, 1);
-  drawScene(gl, programInfo2, buffers, 1, 2);
+  drawScene(gl, programInfo1, buffers, 1.0, 1);
+  drawScene(gl, programInfo2, buffers, 2.0, 2);
   gl.flush();
   gl.activate(false);
 
@@ -128,6 +128,22 @@ uniform sampler2D vidTx;
 void main(void) {
   vec2 tx= vTextureCoord;
   tx.y = 1.0 - tx.y;
+  if (tx.x<0.5)
+  {
+    tx.x = 2.0*tx.x;
+  }
+  else
+  {
+    tx.x = 2.0*(tx.x-0.5);
+  }
+  if (tx.y<0.5)
+  {
+    tx.y = 2.0*tx.y;
+  }
+  else
+  {
+    tx.y = 2.0*(tx.y-0.5);
+  }
   vec4 vid = texture2D(vidTx, tx);
   gl_FragColor = vid;
 }
@@ -140,7 +156,6 @@ uniform sampler2D txt1;
 void main(void) {
   vec2 tx= vTextureCoord;
   vec4 vid = texture2D(txt1, tx);
-  vid.b = 0.0;
   gl_FragColor = vid;
 }
 `;

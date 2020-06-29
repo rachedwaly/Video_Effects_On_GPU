@@ -130,7 +130,7 @@ void main(void) {
                             // gl_fragcoord.x (ou .y)  nous donne les coordonnées du px de sortie dans le sysème de coordonnées de la fenetre (entre 0 et width ou height)
   tx.y = 1.0 - tx.y;      
                             // tx correspond dans notre cas à la normalisation de (gl_fragcoord.x,  gl_fragcoord.x)
-                            // cependant on peut faire des effet intéressant si on manipule, tx.x et tx.y 
+                            // cependant on peut faire des effets intéressants si on manipule tx.x et tx.y 
   
   vec4 vid = texture2D(vidTx, tx);   // vid : couleur du px de img à la podtion tx
   vec4 img = texture2D(imgTx, tx);   // img : couleur du px de img à la podtion tx
