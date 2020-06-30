@@ -6,12 +6,12 @@ function simple_linear_transformation(name, transformation_matrix) { // res.rgb 
                 u_tr_mat : {name: "u_tr_mat", type: "float[9]", value: transformation_matrix},
   }; 
 
-  this.general_uniforms = [];
+  this.general_uniforms = {};
   
   this.require_fbo = false;
 
   this.source = `
-vec4 black_and_white(vec4 pxcolor, vec2 tx) {
+vec4 `+name+`(vec4 pxcolor, vec2 tx) {
   
   vec4 res = vec4(0.0, 0.0, 0.0, pxcolor.a);
   
@@ -25,16 +25,18 @@ vec4 black_and_white(vec4 pxcolor, vec2 tx) {
 
 };
 
-function kernel_convolution(name, kernel, offset) { 
+function kernel_convolution(name, kernel, offset_size, offset, width, height) { 
   
   this.name = name;
   
   this.effect_uniforms = {
                 u_kernell : {name: "u_kernell", type: "float[9]", value: kernel},
                 u_offset : {name: "u_offset", type: "vec2[9]", value: offset},
+                u_offset_size : {name: "u_offset_size", type: "float", value: offset},
+                u_dim : {name: "u_dim", type: "vec2", value: [width, height]},
   };
   
-  this.general_uniforms = [];
+  this.general_uniforms = {};
 
   this.require_fbo = true; 
 
@@ -43,10 +45,14 @@ vec4 kernel_convolution(vec4 pxcolor, vec2 tx) {
   vec4 sum = vec4(0.0);
   sum.a = v.a;
   int i = 0;
-  for( i=0; i<9; i++ )
+  int j = 0;
+  for( i=0; i<u_offset_size; i++ )
   {
-    vec4 tmp = texture2D(vidTx, tx + u_offset[i]);
-    sum.rgb += tmp.rgb * u_kernell[i];
+    for( j=0; j<u_offset_size; j++ )
+    {
+      vec4 tmp = texture2D(vidTx, tx + u_offset[i]/ u_dim);
+      sum.rgb += tmp.rgb * u_kernell[i];      
+    }
   }
   
   gl_FragColor = sum;
@@ -54,7 +60,25 @@ vec4 kernel_convolution(vec4 pxcolor, vec2 tx) {
 `;
 };
 
+// linear transformations
 
-var gray_scale = new simple_linear_transformation('gray_scale', [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
-                                                                  1.0/3.0, 1.0/3.0, 1.0/3.0,
-                                                                  1.0/3.0, 1.0/3.0, 1.0/3.0 ]);
+let tr_mat_gray_scale = [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
+                          1.0/3.0, 1.0/3.0, 1.0/3.0,
+                          1.0/3.0, 1.0/3.0, 1.0/3.0 ];
+
+var gray_scale = new simple_linear_transformation('gray_scale', tr_mat_gray_scale);
+
+
+
+
+// kernel convolutions
+
+let offset33 = [-1.0, -1.0, 0.0, -1.0, 1.0, -1.0,
+                -1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
+                -1.0, step_h, 0.0, 1.0, 1.0, 1.0];
+
+let tr_mat_gray_scale = [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
+                          1.0/3.0, 1.0/3.0, 1.0/3.0,
+                          1.0/3.0, 1.0/3.0, 1.0/3.0 ];
+
+var moyenneur = new kernel_convolution
