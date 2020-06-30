@@ -2,11 +2,11 @@ function simple_linear_transformation(name, transformation_matrix) { // res.rgb 
   
   this.name : name;
   
-  this.effect_uniforms = {
-                u_tr_mat : {name: "u_tr_mat", type: "float[9]", value: transformation_matrix},
-  }; 
+  this.effect_uniforms = [
+              {name: "u_tr_mat", type: "float[9]", value: transformation_matrix},
+  ]; 
 
-  this.general_uniforms = {};
+  this.general_uniforms = [];
   
   this.require_fbo = false;
 
@@ -29,19 +29,19 @@ function kernel_convolution(name, kernel, offset_size, offset, width, height) {
   
   this.name = name;
   
-  this.effect_uniforms = {
-                u_kernell : {name: "u_kernell", type: "float[9]", value: kernel},
-                u_offset : {name: "u_offset", type: "vec2[9]", value: offset},
-                u_offset_size : {name: "u_offset_size", type: "float", value: offset},
-                u_dim : {name: "u_dim", type: "vec2", value: [width, height]},
-  };
+  this.effect_uniforms = [
+                {name: "u_kernell", type: "float[9]", value: kernel},
+                {name: "u_offset", type: "vec2[9]", value: offset},
+                {name: "u_offset_size", type: "float", value: offset},
+                {name: "u_dim", type: "vec2", value: [width, height]},
+  ];
   
-  this.general_uniforms = {};
+  this.general_uniforms = [];
 
   this.require_fbo = true; 
 
   this.source = `
-vec4 kernel_convolution(vec4 pxcolor, vec2 tx) {
+vec4 `+name+`(vec4 pxcolor, vec2 tx) {
   vec4 sum = vec4(0.0);
   sum.a = v.a;
   int i = 0;
@@ -73,12 +73,12 @@ var gray_scale = new simple_linear_transformation('gray_scale', tr_mat_gray_scal
 
 // kernel convolutions
 
-let offset33 = [-1.0, -1.0, 0.0, -1.0, 1.0, -1.0,
-                -1.0, 0.0, 0.0, 0.0, 1.0, 0.0,
-                -1.0, step_h, 0.0, 1.0, 1.0, 1.0];
+let offset33 = [-1.0, -1.0,   0.0, -1.0,   1.0, -1.0,
+                -1.0,  0.0,   0.0,  0.0,   1.0,  0.0,
+                -1.0,  1.0,   0.0,  1.0,   1.0,  1.0];
 
-let tr_mat_gray_scale = [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
-                          1.0/3.0, 1.0/3.0, 1.0/3.0,
-                          1.0/3.0, 1.0/3.0, 1.0/3.0 ];
+let kernel_avg = [  1.0/9.0, 1.0/9.0, 1.0/9.0,
+                    1.0/9.0, 1.0/9.0, 1.0/9.0,
+                    1.0/9.0, 1.0/9.0, 1.0/9.0 ];
 
-var moyenneur = new kernel_convolution
+var moyenneur = new kernel_convolution('moyenneur', kernel_avg, 3, offset_size, 600, 300);
