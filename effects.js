@@ -110,4 +110,77 @@ effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3,
     slices.push(one_slice);
   }
 
+  const vsSource = `
+attribute vec4 aVertexPosition;
+attribute vec2 aTextureCoord;
+uniform mat4 uModelViewMatrix;
+uniform mat4 uProjectionMatrix;
+varying vec2 vTextureCoord;
+void main() {
+  gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+  vTextureCoord = aTextureCoord;
+}
+`;
+
+
+function create_fs(effects_list, index_slice, sampler2D_name){
   
+  var s=`
+  varying vec2 vTextureCoord;
+  uniform sampler2D `+sampler2D_name+`;
+  
+  `;
+
+  for (var effect_index =index_slice[0];effect_index<index_slice[1];effect_index++)
+  {   
+    for (var spec_u_index =0; spec_u_index< effects_list[effect_index].effect_uniforms.length  ;spec_u_index++)   // add effect_pecefic uniforms
+    {
+      s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type;
+      s += +' fx'+effect_index.toString+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name + `;\n`;
+    }  
+
+    for (var spec_u_index =0; spec_u_index< effects_list[effect_index].general_uniforms.length  ;spec_u_index++)   // add general uniforms 
+    {
+      s += 'uniform '+ effects_list[effect_index].general_uniforms[spec_u_index].type;
+      s += ' '+effects_list[effect_index].general_uniforms[spec_u_index].name + `;\n`;
+    }  
+
+  }
+
+  for (var effect_index=index_slice[0];effect_index<index_slice[1];effect_index++){   // add effects source
+    s += effects_list[effect_index].source;
+  }
+  
+  s += `
+  void main(void) {
+  vec2 tx_coord = vTextureCoord;
+  `;
+  
+  if (sampler2D_name == 'vidTx')
+    s += `
+    tx_coord.y = 1.0 - tx_coord.y;
+    `;
+  
+  s += `
+  vec4 vid = texture2D(`+sampler2D_name+`, tx_coord);
+  `;
+
+  for (var i=index_slice[0];i<index_slice[1];i++){
+    s+='vid = effet'+i.toString()+'(vid, tx_coord);\n';
+  }
+
+  s+= `
+  gl_FragColor = vid;
+  }
+  `;
+
+  return s;
+}
+
+const list_fs_info = [];
+
+list_fs_info.push(create_fs(effects_list, slices[0] , 'vidTx')); 
+for (var i=1;i<slices.length; i++){
+    list_fs_info.push(create_fs(effects_list, slices[i] , 'txt1')); 
+}
+
