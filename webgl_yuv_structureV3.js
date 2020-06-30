@@ -194,19 +194,20 @@ filter.configure_pid = function(pid) {
   effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
   effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset, width, height));
 
-  var one_slice = [0];
-  for (var effect_index=0; effect_index<effects_list.length; effect_index++)
-  {
-    one_slice.push(effect_index);
-    if (effects_list[effect_index].require_fbo)
+  {   // detect slices
+    var one_slice = [0];
+    for (var effect_index=0; effect_index<effects_list.length; effect_index++)
     {
-      slices.push(one_slice);
-      one_slice = [effect_index];
+      one_slice.push(effect_index);
+      if (effects_list[effect_index].require_fbo)
+      {
+        slices.push(one_slice);
+        one_slice = [effect_index];
+      }
     }
+    one_slice.push(effects_list.length);
+    slices.push(one_slice);
   }
-  one_slice.push(effects_list.length);
-  slices.push(one_slice);
-
 
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }

@@ -32,10 +32,12 @@ function kernel_convolution(name, kernel, offset_size, offset, width, height) {
                 {name: "u_kernell", type: "float[9]", value: kernel},
                 {name: "u_offset", type: "vec2[9]", value: offset},
                 {name: "u_offset_size", type: "float", value: offset},
-                {name: "u_dim", type: "vec2", value: [width, height]},
+
   ];
   
-  this.general_uniforms = [];
+  this.general_uniforms = [
+                {name: "u_dim", type: "vec2", value: [width, height]},
+  ];
 
   this.require_fbo = true; 
 
@@ -59,19 +61,20 @@ function kernel_convolution(name, kernel, offset_size, offset, width, height) {
   `;
 };
 
-// linear transformations
 
+let effects_list = [];
+let slices = [];
+
+// linear transformations matrix
 let tr_mat_gray_scale = [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
                           1.0/3.0, 1.0/3.0, 1.0/3.0,
                           1.0/3.0, 1.0/3.0, 1.0/3.0 ];
-
-var gray_scale = new simple_linear_transformation('gray_scale', tr_mat_gray_scale);
-
-
+let tr_mat_inv_rb = [ 0.0, 0.0, 1.0,
+                      0.0, 1.0, 0.0,
+                      1.0, 0.0, 0.0];
 
 
 // kernel convolutions
-
 let offset33 = [-1.0, -1.0,   0.0, -1.0,   1.0, -1.0,
                 -1.0,  0.0,   0.0,  0.0,   1.0,  0.0,
                 -1.0,  1.0,   0.0,  1.0,   1.0,  1.0];
@@ -79,5 +82,32 @@ let offset33 = [-1.0, -1.0,   0.0, -1.0,   1.0, -1.0,
 let kernel_avg = [  1.0/9.0, 1.0/9.0, 1.0/9.0,
                     1.0/9.0, 1.0/9.0, 1.0/9.0,
                     1.0/9.0, 1.0/9.0, 1.0/9.0 ];
+let kernel_lap =[0.0, -1.0,  0.0,
+                -1.0,  4.0, -1.0,
+                 0.0, -1.0,  0.0];
 
-var moyenneur = new kernel_convolution('moyenneur', kernel_avg, 3, offset, 600, 300);
+
+let effects_list = [];
+let slices = [];
+
+effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
+effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset, 600, 300));
+effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
+effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset, 600, 300));
+
+{   // detect slices
+    var one_slice = [0];
+    for (var effect_index=0; effect_index<effects_list.length; effect_index++)
+    {
+      one_slice.push(effect_index);
+      if (effects_list[effect_index].require_fbo)
+      {
+        slices.push(one_slice);
+        one_slice = [effect_index];
+      }
+    }
+    one_slice.push(effects_list.length);
+    slices.push(one_slice);
+  }
+
+  
