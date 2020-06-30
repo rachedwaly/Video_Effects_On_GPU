@@ -33,10 +33,7 @@ let FBOs = null;
 
 
 
-let  glob_uni_info = [ 
-          {u_name: "nb_frames", in_use=false, type='int', location=-1},
-          {name: "u_dim", in_use=false, type: "vec2"},
-        ];
+let  glob_uni_info = [];
 
 
 function simple_linear_transformation(name, transformation_matrix) { // res.rgb = transformation_matrix*pxcolor.rgb
@@ -70,14 +67,14 @@ function kernel_convolution(name, kernel, offset_size, offset, width, height) {
   this.name = name;
   
   this.effect_uniforms = [
-                {name: "u_kernell", type: "float[9]", value: kernel},
-                {name: "u_offset", type: "vec2[9]", value: offset},
+                {name: "u_kernell", type: "float["+offset_size.toString+"]", value: kernel},
+                {name: "u_offset", type: "vec2["+offset_size.toString+"]", value: offset},
                 {name: "u_offset_size", type: "float", value: offset},
 
   ];
   
   this.general_uniforms = [
-                {name: "u_dim", type: "vec2", value: [width, height]},
+                {name: "u_dim", type: "vec2", value},
   ];
 
   this.require_fbo = true; 
@@ -219,6 +216,10 @@ filter.update_arg = function(name, val)
 
 filter.process = function()
 {
+  glob_uni_info = [ 
+          {u_name: "nb_frames", type='int', value: nb_frames},
+          {u_name: "u_dim", type: "vec2", value: [width, height]},
+        ];
   let ipck = ipid.get_packet();
   if (!ipck) return GF_OK;
   if (filter.frame_pending) {
@@ -292,7 +293,8 @@ void main() {
 
 function create_fs(effects_list, index_slice, sampler2D_name){
   
-
+  let specefic_uniforms = [];
+  let global_uniforms_names = [];
 
 
   var s=`
@@ -305,14 +307,20 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   {   
     for (var spec_u_index =0; spec_u_index< effects_list[effect_index].effect_uniforms.length  ;spec_u_index++)   // add effect_pecefic uniforms
     {
-      s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type;
-      s += +' fx'+effect_index.toString+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name + `;\n`;
+      effects_list[effect_index].effect_uniforms[spec_u_index].name = 'fx'+effect_index.toString+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name;
+      specefic_uniforms.push(effects_list[effect_index].effect_uniforms[spec_u_index]);
+      s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type +' '+effects_list[effect_index].effect_uniforms[spec_u_index].name+`;\n`;
     }  
 
-    for (var spec_u_index =0; spec_u_index< effects_list[effect_index].general_uniforms.length  ;spec_u_index++)   // add general uniforms 
+    for (var glob_u_index =0; glob_u_index< effects_list[effect_index].general_uniforms.length  ;glob_u_index++)   // add general uniforms 
     {
-      s += 'uniform '+ effects_list[effect_index].general_uniforms[spec_u_index].type;
-      s += ' '+effects_list[effect_index].general_uniforms[spec_u_index].name + `;\n`;
+      let glob_uni_name = effects_list[effect_index].effect_uniforms[glob_u_index];
+      if (!(global_uniforms_names.includes(glob_uni_name)))
+      {
+        global_uniforms_names.push(glob_uni_name);
+        s += 'uniform '+ effects_list[effect_index].general_uniforms[glob_u_index].type + ' '+glob_uni_name + `;\n`; //TODO 
+      }
+    
     }  
 
   }
@@ -344,7 +352,11 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   }
   `;
 
-  return s;
+  return {
+    source : s, 
+    specefic_uniforms : specefic_uniforms, 
+    global_uniforms_in_use_names : global_uniforms_names,
+  };
 }
 
 const list_fs_info = [];
@@ -357,14 +369,12 @@ for (var i=1;i<slices.length; i++){
 function setupProgram(gl, vsSource, fs_info, sampler2D_name)
 {
 
-  const shaderProgram = initShaderProgram(gl, vsSource, fsSource);
-  
-  let specefic_uniforms_locations = [];
-  let global_uniforms_locations = [];
+  const shaderProgram = initShaderProgram(gl, vsSource, fs_info.source);
 
   return {
     program: shaderProgram,
-    shader: fsSource,
+    specefic_uniforms: fs_info.specefic_uniforms,
+    global_uniforms_names : fs_info.global_uniforms_names,
     attribLocations: {
       vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
       textureCoord: gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
@@ -373,8 +383,6 @@ function setupProgram(gl, vsSource, fs_info, sampler2D_name)
       projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
       modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
       input_texture: gl.getUniformLocation(shaderProgram, sampler2D_name),
-      specefic_uniforms: specefic_uniforms_locations,
-      global_uniforms: global_uniforms_locations,
     },
   };
 }
@@ -491,6 +499,23 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
   //set uniforms
   gl.uniformMatrix4fv(programInfo.uniformLocations.projectionMatrix, false, projectionMatrix.m);
   gl.uniformMatrix4fv( programInfo.uniformLocations.modelViewMatrix, false, modelViewMatrix.m);
+
+
+  for (var su_index=0; su_index<programInfo.specefic_uniforms.length; su_index++)   // push specefic uniforms value
+  {
+    var location = uniforms_locations.push(gl.getUniformLocation(programInfo.program, programInfo.specefic_uniforms[su_index].name));
+    gl.uniform1f(location, programInfo.specefic_uniforms[su_index].value);    //TODO switch type
+  }  
+
+
+  for (var gu_index=0; gu_index<glob_uni_info.length; gu_index++) // push global uniforms value
+  {
+    if (programInfo.global_uniforms_in_use_names.includes(glob_uni_info[gu_index].name))
+      {
+        var location = uniforms_locations.push(gl.getUniformLocation(programInfo.program, glob_uni_info[gu_index].name));
+        gl.uniform1f(location, glob_uni_info[gu_index].value);    //TODO switch type
+      } 
+  }
   //set image
   //gl.activeTexture(gl.TEXTURE0);
   //gl.bindTexture(gl.TEXTURE_2D, texture);
