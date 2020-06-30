@@ -191,20 +191,21 @@ filter.configure_pid = function(pid) {
   effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
   effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset, width, height));
 
-  {   // detect slices
-    var one_slice = [0];
-    for (var effect_index=0; effect_index<effects_list.length; effect_index++)
+  // detect slices
+  var one_slice = [0];
+  for (var effect_index=0; effect_index<effects_list.length; effect_index++)
+  {
+    one_slice.push(effect_index);
+    if (effects_list[effect_index].require_fbo)
     {
-      one_slice.push(effect_index);
-      if (effects_list[effect_index].require_fbo)
-      {
-        slices.push(one_slice);
-        one_slice = [effect_index];
-      }
+      slices.push(one_slice);
+      one_slice = [effect_index];
     }
-    one_slice.push(effects_list.length);
-    slices.push(one_slice);
   }
+  
+  one_slice.push(effects_list.length);
+  slices.push(one_slice);
+  
 
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }
@@ -504,7 +505,8 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
   for (var su_index=0; su_index<programInfo.specefic_uniforms.length; su_index++)   // push specefic uniforms value
   {
     var location = uniforms_locations.push(gl.getUniformLocation(programInfo.program, programInfo.specefic_uniforms[su_index].name));
-    gl.uniform1f(location, programInfo.specefic_uniforms[su_index].value);    //TODO switch type
+    //gl.uniform1f(location, programInfo.specefic_uniforms[su_index].value);  //TODO switch type
+    add_uniform(gl,location,programInfo.specefic_uniforms[su_index],programInfo.specefic_uniforms[su_index].type);
   }  
 
 
@@ -513,7 +515,9 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
     if (programInfo.global_uniforms_in_use_names.includes(glob_uni_info[gu_index].name))
       {
         var location = uniforms_locations.push(gl.getUniformLocation(programInfo.program, glob_uni_info[gu_index].name));
-        gl.uniform1f(location, glob_uni_info[gu_index].value);    //TODO switch type
+        //gl.uniform1f(location, glob_uni_info[gu_index].value); 
+        add_uniform(gl,location,glob_uni_info[gu_index],glob_uni_info[gu_index].type);
+   //TODO switch type
       } 
   }
   //set image
@@ -596,4 +600,53 @@ function loadShader(gl, type, source) {
     return null;
   }
   return shader;
+}
+
+
+function add_uniform(gl,location,programinfoo,type){
+  switch (type){
+      case "float": 
+      {gl.uniform1f(location,programinfoo.value);
+        break;}
+      case "float[9]":
+      {
+        gl.uniform1fv(location,programinfoo.value);
+        break;
+      }
+      case "float[25]":
+      {
+        gl.uniform1fv(location,programinfoo.value);
+        break;
+      }
+      case "float[49]":
+      {
+        gl.uniform1fv(location,programinfoo.value);
+        break;
+      }
+      case "vec2[9]":
+      {  
+        gl.uniform2fv(location,programinfoo.value);
+        break;
+      } 
+       case "vec2[25]":
+      {  
+        gl.uniform2fv(location,programinfoo.value);
+        break;
+      } 
+       case "vec2[49]":
+      {  
+        gl.uniform2fv(location,programinfoo.value);
+        break;
+      } 
+      case "int":
+        {
+          gl.uniform1f(location,programinfoo.value);
+          break;
+        }
+      case "vec2":
+        {
+          gl.uniform1fv(location,programinfoo.value);
+          break;
+        } 
+ }
 }
