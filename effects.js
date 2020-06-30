@@ -95,13 +95,13 @@ effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset, 600
 effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
 effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset, 600, 300));
 
-{   // detect slices
+{   // detect slices   
     var one_slice = [0];
-    for (var effect_index=0; effect_index<effects_list.length; effect_index++)
+    for (var effect_index=1; effect_index<effects_list.length; effect_index++)
     {
-      one_slice.push(effect_index);
       if (effects_list[effect_index].require_fbo)
       {
+        one_slice.push(effect_index);
         slices.push(one_slice);
         one_slice = [effect_index];
       }
@@ -136,7 +136,7 @@ function create_fs(effects_list, index_slice, sampler2D_name){
     for (var spec_u_index =0; spec_u_index< effects_list[effect_index].effect_uniforms.length  ;spec_u_index++)   // add effect_pecefic uniforms
     {
       s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type;
-      s += +' fx'+effect_index.toString+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name + `;\n`;
+      s += ' fx'+effect_index.toString+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name + `;\n`;
     }  
 
     for (var spec_u_index =0; spec_u_index< effects_list[effect_index].general_uniforms.length  ;spec_u_index++)   // add general uniforms 
