@@ -36,7 +36,7 @@ function kernel_convolution(name, kernel, offset_size, offset, width, height) {
   ];
   
   this.general_uniforms = [
-                {name: "u_dim", type: "vec2", value: [width, height]},
+                {name: "u_dim", type: "vec2",},
   ];
 
   this.require_fbo = true; 
