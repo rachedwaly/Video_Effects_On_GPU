@@ -504,9 +504,9 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
 
   for (var su_index=0; su_index<programInfo.specefic_uniforms.length; su_index++)   // push specefic uniforms value
   {
-    var location = uniforms_locations.push(gl.getUniformLocation(programInfo.program, programInfo.specefic_uniforms[su_index].name));
-    //gl.uniform1f(location, programInfo.specefic_uniforms[su_index].value);  //TODO switch type
-    add_uniform(gl,location,programInfo.specefic_uniforms[su_index],programInfo.specefic_uniforms[su_index].type);
+    var location = gl.getUniformLocation(programInfo.program, programInfo.specefic_uniforms[su_index].name);
+
+    add_uniform(gl,location,programInfo.specefic_uniforms[su_index].value,programInfo.specefic_uniforms[su_index].type);
   }  
 
 
@@ -514,10 +514,10 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
   {
     if (programInfo.global_uniforms_in_use_names.includes(glob_uni_info[gu_index].name))
       {
-        var location = uniforms_locations.push(gl.getUniformLocation(programInfo.program, glob_uni_info[gu_index].name));
-        //gl.uniform1f(location, glob_uni_info[gu_index].value); 
-        add_uniform(gl,location,glob_uni_info[gu_index],glob_uni_info[gu_index].type);
-   //TODO switch type
+        var location = gl.getUniformLocation(programInfo.program, glob_uni_info[gu_index].name);
+        
+        add_uniform(gl,location,glob_uni_info[gu_index].value,glob_uni_info[gu_index].type);
+   
       } 
   }
   //set image
@@ -603,49 +603,49 @@ function loadShader(gl, type, source) {
 }
 
 
-function add_uniform(gl,location,programinfoo,type){
+function add_uniform(gl,location,value,type){
   switch (type){
       case "float": 
-      {gl.uniform1f(location,programinfoo.value);
+      {gl.uniform1f(location,value);
         break;}
       case "float[9]":
       {
-        gl.uniform1fv(location,programinfoo.value);
+        gl.uniform1fv(location,value);
         break;
       }
       case "float[25]":
       {
-        gl.uniform1fv(location,programinfoo.value);
+        gl.uniform1fv(location,value);
         break;
       }
       case "float[49]":
       {
-        gl.uniform1fv(location,programinfoo.value);
+        gl.uniform1fv(location,value);
         break;
       }
       case "vec2[9]":
       {  
-        gl.uniform2fv(location,programinfoo.value);
+        gl.uniform2fv(location,value);
         break;
       } 
        case "vec2[25]":
       {  
-        gl.uniform2fv(location,programinfoo.value);
+        gl.uniform2fv(location,value);
         break;
       } 
        case "vec2[49]":
       {  
-        gl.uniform2fv(location,programinfoo.value);
+        gl.uniform2fv(location,value);
         break;
       } 
       case "int":
         {
-          gl.uniform1f(location,programinfoo.value);
+          gl.uniform1i(location,value);
           break;
         }
       case "vec2":
         {
-          gl.uniform1fv(location,programinfoo.value);
+          gl.uniform1fv(location,value);
           break;
         } 
  }
