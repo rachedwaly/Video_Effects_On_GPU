@@ -75,9 +75,9 @@ function kernel_convolution(name, kernel, offset_size, offset) {
   this.name = name;
   
   this.effect_uniforms = [
-                {name: "u_kernell", type: "float["+offset_size+"]", value: kernel},
-                {name: "u_offset", type: "vec2["+offset_size+"]", value: offset},
-                {name: "u_off_size", type: "int", value: offset},
+                {name: "u_kernell", type: "float["+offset_size*offset_size+"]", value: kernel},
+                {name: "u_offset", type: "vec2["+offset_size*offset_size+"]", value: offset},
+                {name: "u_off_size", type: "int", value: offset_size},
 
   ];
   
@@ -86,7 +86,7 @@ function kernel_convolution(name, kernel, offset_size, offset) {
   this.require_fbo = true; 
 
   this.source = `
-  vec4 `+name+`(vec4 pxcolor, sampler2D current_texture, vec2 tx) {\n
+  vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
     vec4 sum = vec4(0.0);\n
     sum.a = pxcolor.a;\n
     int i = 0;\n
@@ -353,6 +353,7 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   s += `
   void main(void) {
   vec2 tx_coord = vTextureCoord;
+  sampler2D current_texture = `+ sampler2D_name +`;
   `;
   
   if (sampler2D_name == 'vidTx')
@@ -360,15 +361,12 @@ function create_fs(effects_list, index_slice, sampler2D_name){
     tx_coord.y = 1.0 - tx_coord.y;
     `;
 
-  s += "\nvec4 vid = texture2D("+sampler2D_name+",tx_coord);\n";
+  s += "\nvec4 vid = texture2D(current_texture, tx_coord);\n";
 
   
   for (var effect_index =index_slice[0];effect_index<index_slice[1];effect_index++)
   {   
-    if (effects_list[effect_index].require_fbo)
-      s += 'vid = ' + effects_list[effect_index].name +'(vid, '+sampler2D_name+', tx_coord);\n';
-    else
-      s += 'vid = ' + effects_list[effect_index].name +'(vid, tx_coord);\n';
+    s += 'vid = ' + effects_list[effect_index].name +'(vid, tx_coord);\n';
   }
 
   s+= `
