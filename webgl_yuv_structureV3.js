@@ -23,7 +23,7 @@ let ipid=null;
 let opid=null;
 let nb_frames=0;
 let pix_fmt = '';
-let programs_Info = [null,null];
+let programs_Info = [null];
 
 let gl = null;
 let pck_tx = null;
@@ -33,75 +33,80 @@ let FBOs = null;
 
 
 
-let  glob_uni_info = [];
+let  glob_uni_info = [ 
+          {u_name: "nb_frames", type:'int', value: nb_frames},
+          {u_name: "u_dim", type: "vec2", value: [width, height]},
+        ];;
 
 
 function simple_linear_transformation(name, transformation_matrix) { // res.rgb = transformation_matrix*pxcolor.rgb
   
-  this.name : name;
+  this.name = name;
   
   this.effect_uniforms = [
               {name: "u_tr_mat", type: "float[9]", value: transformation_matrix},
   ]; 
 
-  this.general_uniforms = [];
+  this.global_uniforms_in_use_names = [];
   
   this.require_fbo = false;
 
   this.source = `
-  vec4 `+name+`(vec4 pxcolor, vec2 tx) {
+  vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
     
-    vec4 res = vec4(0.0, 0.0, 0.0, pxcolor.a);
+    vec4 res = vec4(0.0, 0.0, 0.0, pxcolor.a);\n
     
-    res.r = transformation_matrix[0]*pxcolor.r + transformation_matrix[1]*pxcolor.g + transformation_matrix[2]*pxcolor.b;
-    res.g = transformation_matrix[3]*pxcolor.r + transformation_matrix[4]*pxcolor.g + transformation_matrix[5]*pxcolor.b;
-    res.b = transformation_matrix[6]*pxcolor.r + transformation_matrix[7]*pxcolor.g + transformation_matrix[8]*pxcolor.b;
+    res.r = u_tr_mat[0]*pxcolor.r + u_tr_mat[1]*pxcolor.g + u_tr_mat[2]*pxcolor.b;\n
+    res.g = u_tr_mat[3]*pxcolor.r + u_tr_mat[4]*pxcolor.g + u_tr_mat[5]*pxcolor.b;\n
+    res.b = u_tr_mat[6]*pxcolor.r + u_tr_mat[7]*pxcolor.g + u_tr_mat[8]*pxcolor.b;\n
 
-    return res;
+    return res;\n
   }
   `;
+
+  this.update_source = function(standard_unifo_nam, prefix) { this.source = this.source.replaceAll(standard_unifo_nam,prefix+'_'+standard_unifo_nam); }
+
 };
 
-function kernel_convolution(name, kernel, offset_size, offset, width, height) { 
+
+
+function kernel_convolution(name, kernel, offset_size, offset) { 
   
   this.name = name;
   
   this.effect_uniforms = [
-                {name: "u_kernell", type: "float["+offset_size.toString+"]", value: kernel},
-                {name: "u_offset", type: "vec2["+offset_size.toString+"]", value: offset},
+                {name: "u_kernell", type: "float["+offset_size+"]", value: kernel},
+                {name: "u_offset", type: "vec2["+offset_size+"]", value: offset},
                 {name: "u_offset_size", type: "float", value: offset},
 
   ];
   
-  this.general_uniforms = [
-                {name: "u_dim", type: "vec2", value},
-  ];
+  this.global_uniforms_in_use_names = ["u_dim"];
 
   this.require_fbo = true; 
 
   this.source = `
-  vec4 `+name+`(vec4 pxcolor, vec2 tx) {
-    vec4 sum = vec4(0.0);
-    sum.a = v.a;
-    int i = 0;
-    int j = 0;
-    for( i=0; i<u_offset_size; i++ )
-    {
-      for( j=0; j<u_offset_size; j++ )
-      {
-        vec4 tmp = texture2D(vidTx, tx + u_offset[i]/ u_dim);
-        sum.rgb += tmp.rgb * u_kernell[i];      
-      }
-    }
+  vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
+    vec4 sum = vec4(0.0);\n
+    sum.a = v.a;\n
+    int i = 0;\n
+    int j = 0;\n
+    for( i=0; i<u_offset_size; i++ )\n
+    {\n
+      for( j=0; j<u_offset_size; j++ )\n
+      {\n
+        vec4 tmp = texture2D(vidTx, tx + u_offset[i*u_offset_size+j]/ u_dim);\n
+        sum.rgb += tmp.rgb * u_kernell[i];      \n
+      }\n
+    }\n
     
-    return sum;
+    return sum;\n
   }
   `;
+
+  this.update_source = function(standard_unifo_nam, prefix) { this.source = this.source.replaceAll(standard_unifo_nam, prefix+'_'+standard_unifo_nam); }
 };
 
-
-let effects_list = [];
-let slices = [];
 
 // linear transformations matrix
 let tr_mat_gray_scale = [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
@@ -123,6 +128,41 @@ let kernel_avg = [  1.0/9.0, 1.0/9.0, 1.0/9.0,
 let kernel_lap =[0.0, -1.0,  0.0,
                 -1.0,  4.0, -1.0,
                  0.0, -1.0,  0.0];
+
+
+let effects_list = [];
+let slices = [];
+let list_fs_info = [];
+
+
+effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
+effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
+effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
+  
+
+  // detect slices
+var one_slice = [0];
+for (var effect_index=1; effect_index<effects_list.length; effect_index++)
+{
+  if (effects_list[effect_index].require_fbo)
+  {
+    one_slice.push(effect_index);
+    slices.push(one_slice);
+    one_slice = [effect_index];
+  }
+}
+  
+one_slice.push(effects_list.length);
+slices.push(one_slice);
+
+
+list_fs_info.push(create_fs(effects_list, slices[0] , 'vidTx')); 
+print(list_fs_info[0].source);
+for (var i=1;i<slices.length; i++){
+    list_fs_info.push(create_fs(effects_list, slices[i] , 'txt1')); 
+    print(list_fs_info[i].source);
+}
 
 
 
@@ -186,27 +226,6 @@ filter.configure_pid = function(pid) {
 
   
 
-  effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
-  effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset, width, height));
-  effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
-  effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset, width, height));
-
-  // detect slices
-  var one_slice = [0];
-  for (var effect_index=0; effect_index<effects_list.length; effect_index++)
-  {
-    one_slice.push(effect_index);
-    if (effects_list[effect_index].require_fbo)
-    {
-      slices.push(one_slice);
-      one_slice = [effect_index];
-    }
-  }
-  
-  one_slice.push(effects_list.length);
-  slices.push(one_slice);
-  
-
   print(`pid and WebGL configured: ${width}x${height} source format ${pf}`);
 }
 
@@ -218,7 +237,7 @@ filter.update_arg = function(name, val)
 filter.process = function()
 {
   glob_uni_info = [ 
-          {u_name: "nb_frames", type='int', value: nb_frames},
+          {u_name: "nb_frames", type:'int', value: nb_frames},
           {u_name: "u_dim", type: "vec2", value: [width, height]},
         ];
   let ipck = ipid.get_packet();
@@ -240,7 +259,7 @@ filter.process = function()
   for (var i=1;i<slices.length; i++){
     if (programs_Info[i] == null)
     {
-      programs_Info[i] = setupProgram(gl, vsSource, list_fs_info[i],'txt1');
+      programs_Info.push(setupProgram(gl, vsSource, list_fs_info[i],'txt1'));
     }
   }
   // indice in  texture (-1:video, 0:FBOs[0], 1:FBOs[1])
@@ -295,7 +314,7 @@ void main() {
 function create_fs(effects_list, index_slice, sampler2D_name){
   
   let specefic_uniforms = [];
-  let global_uniforms_names = [];
+  let global_uniforms_in_use_names = [];
 
 
   var s=`
@@ -308,18 +327,20 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   {   
     for (var spec_u_index =0; spec_u_index< effects_list[effect_index].effect_uniforms.length  ;spec_u_index++)   // add effect_pecefic uniforms
     {
-      effects_list[effect_index].effect_uniforms[spec_u_index].name = 'fx'+effect_index.toString+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name;
+      effects_list[effect_index].update_source(effects_list[effect_index].effect_uniforms[spec_u_index].name, 'fx_'+effect_index);
+      effects_list[effect_index].effect_uniforms[spec_u_index].name = 'fx_'+effect_index+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name;
+      
       specefic_uniforms.push(effects_list[effect_index].effect_uniforms[spec_u_index]);
       s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type +' '+effects_list[effect_index].effect_uniforms[spec_u_index].name+`;\n`;
     }  
 
-    for (var glob_u_index =0; glob_u_index< effects_list[effect_index].general_uniforms.length  ;glob_u_index++)   // add general uniforms 
+    for (var glob_u_index =0; glob_u_index< glob_uni_info.length  ;glob_u_index++)   // add general uniforms 
     {
-      let glob_uni_name = effects_list[effect_index].effect_uniforms[glob_u_index];
-      if (!(global_uniforms_names.includes(glob_uni_name)))
+      let glob_uni_name = glob_uni_info[glob_u_index].name;
+      if (!(global_uniforms_in_use_names.includes(glob_uni_name)) && effects_list[effect_index].global_uniforms_in_use_names.includes(glob_uni_name))
       {
-        global_uniforms_names.push(glob_uni_name);
-        s += 'uniform '+ effects_list[effect_index].general_uniforms[glob_u_index].type + ' '+glob_uni_name + `;\n`; //TODO 
+        global_uniforms_in_use_names.push(glob_uni_name);
+        s += 'uniform '+ glob_uni_info[glob_u_index].type + ' '+glob_uni_name + `;\n`; //TODO 
       }
     
     }  
@@ -344,8 +365,9 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   vec4 vid = texture2D(`+sampler2D_name+`, tx_coord);
   `;
 
-  for (var i=index_slice[0];i<index_slice[1];i++){
-    s+='vid = effet'+i.toString()+'(vid, tx_coord);\n';
+  for (var effect_index =index_slice[0];effect_index<index_slice[1];effect_index++)
+  {   
+    s += 'vid = ' + effects_list[effect_index].name +'(vid, tx_coord);\n';
   }
 
   s+= `
@@ -356,15 +378,8 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   return {
     source : s, 
     specefic_uniforms : specefic_uniforms, 
-    global_uniforms_in_use_names : global_uniforms_names,
+    global_uniforms_in_use_names : global_uniforms_in_use_names,
   };
-}
-
-const list_fs_info = [];
-
-list_fs_info.push(create_fs(effects_list, slices[0] , 'vidTx')); 
-for (var i=1;i<slices.length; i++){
-    list_fs_info.push(create_fs(effects_list, slices[i] , 'txt1')); 
 }
 
 function setupProgram(gl, vsSource, fs_info, sampler2D_name)
@@ -375,7 +390,7 @@ function setupProgram(gl, vsSource, fs_info, sampler2D_name)
   return {
     program: shaderProgram,
     specefic_uniforms: fs_info.specefic_uniforms,
-    global_uniforms_names : fs_info.global_uniforms_names,
+    global_uniforms_in_use_names : fs_info.global_uniforms_in_use_names,
     attribLocations: {
       vertexPosition: gl.getAttribLocation(shaderProgram, 'aVertexPosition'),
       textureCoord: gl.getAttribLocation(shaderProgram, 'aTextureCoord'),
