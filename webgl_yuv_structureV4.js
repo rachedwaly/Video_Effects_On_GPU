@@ -170,7 +170,7 @@ effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_ma
 effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
 
-effects_list.push(new change_buffer_size('zall',0.5,0.5));
+effects_list.push(new change_buffer_size('half_size',0.5,0.5));
 
 
 
