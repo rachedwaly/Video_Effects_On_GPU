@@ -34,8 +34,8 @@ let FBOs = null;
 
 
 let  glob_uni_info = [ 
-          {name: "u_nb_frames", type:'int', value: nb_frames},
-          {name: "u_dim", type: "vec2", value: [width, height]},
+          {name: "u_nb_frames", type:'int', dim: [1,1], value: nb_frames},
+          {name: "u_dim", type: "vec", dim: [2,1], value: [width, height]},
         ];;
 
 
@@ -44,7 +44,7 @@ function simple_linear_transformation(name, transformation_matrix) { // res.rgb 
   this.name = name;
   
   this.effect_uniforms = [
-              {name: "u_tr_mat", type: "float[9]", value: transformation_matrix},
+              {name: "u_tr_mat", type: "float", dim: [1,9], value: transformation_matrix},
   ]; 
 
   this.global_uniforms_in_use_names = [];
@@ -75,9 +75,9 @@ function kernel_convolution(name, kernel, offset_size, offset) {
   this.name = name;
   
   this.effect_uniforms = [
-                {name: "u_kernell", type: "float["+offset_size*offset_size+"]", value: kernel},
-                {name: "u_offset", type: "vec2["+offset_size*offset_size+"]", value: offset},
-                {name: "u_off_size", type: "int", value: offset_size},
+                {name: "u_kernell", type: "float", dim: [1,offset_size*offset_size], value: kernel},
+                {name: "u_offset", type: "vec", dim : [2,offset_size*offset_size], value: offset},
+                {name: "u_off_size", type: "int", dim: [1,1], value: offset_size},
 
   ];
   
@@ -136,7 +136,7 @@ let list_fs_info = [];
 
 
 effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
 //effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
   
@@ -314,7 +314,7 @@ void main() {
 function create_fs(effects_list, index_slice, sampler2D_name){
   
   let specefic_uniforms = [];
-  let global_uniforms_in_use_names = [];
+  let global_uniforms_in_use_names = [];   // this list will contain all the global uniforms used by each effect of this fragmentshader
 
 
   var s=`
@@ -327,19 +327,36 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   {   
     for (var spec_u_index =0; spec_u_index< effects_list[effect_index].effect_uniforms.length  ;spec_u_index++)   // add effect_pecefic uniforms
     {
-      effects_list[effect_index].update_source(effects_list[effect_index].effect_uniforms[spec_u_index].name, 'fx_'+effect_index);
-      effects_list[effect_index].effect_uniforms[spec_u_index].name = 'fx_'+effect_index+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name;
-      specefic_uniforms.push(effects_list[effect_index].effect_uniforms[spec_u_index]);
-      s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type +' '+effects_list[effect_index].effect_uniforms[spec_u_index].name+`;\n`;
+      var uniform_variable = effects_list[effect_index].effect_uniforms[spec_u_index];
+
+      effects_list[effect_index].update_source(uniform_variable.name, 'fx_'+effect_index);
+
+      uniform_variable.name = 'fx_'+effect_index+'_'+uniform_variable.name;
+
+      specefic_uniforms.push(uniform_variable);
+      
+      s += 'uniform '+ uniform_variable.type + ((uniform_variable.dim[0]==1) ? '' : uniform_variable.dim[0]);
+
+      s += ((uniform_variable.dim[1]==1) ? '' : '['+uniform_variable.dim[1]+']');
+
+      s +=' '+uniform_variable.name+`;\n`;
     }  
 
-    for (var glob_u_index =0; glob_u_index< glob_uni_info.length  ;glob_u_index++)   // add general uniforms 
+    for (var glob_u_index =0; glob_u_index< glob_uni_info.length  ;glob_u_index++)   // add general uniforms   // we see for each global uniform if it' not yet added 
+                                                                                                                //and if it is used for this effect
     {
-      let glob_uni_name = glob_uni_info[glob_u_index].name;
-      if (!(global_uniforms_in_use_names.includes(glob_uni_name)) && effects_list[effect_index].global_uniforms_in_use_names.includes(glob_uni_name))
+      var uniform_variable = glob_uni_info[glob_u_index];
+
+      if (!(global_uniforms_in_use_names.includes(uniform_variable.name)) && effects_list[effect_index].global_uniforms_in_use_names.includes(uniform_variable.name))
       {
-        global_uniforms_in_use_names.push(glob_uni_name);
-        s += 'uniform '+ glob_uni_info[glob_u_index].type + ' '+glob_uni_name + `;\n`; //TODO 
+        global_uniforms_in_use_names.push(uniform_variable);
+
+        s += 'uniform '+ uniform_variable.type + ((uniform_variable.dim[0]==1) ? '' : uniform_variable.dim[0]);
+
+        s += ((uniform_variable.dim[1]==1) ? '' : '['+uniform_variable.dim[1]+']');
+
+        s +=' '+uniform_variable.name+`;\n`;
+
       }
     
     }  
@@ -519,7 +536,7 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
   {
     var location = gl.getUniformLocation(programInfo.program, programInfo.specefic_uniforms[su_index].name);
 
-    add_uniform(gl,location,programInfo.specefic_uniforms[su_index].value,programInfo.specefic_uniforms[su_index].type);
+    add_uniform(gl,location,programInfo.specefic_uniforms[su_index]);
   }  
 
 
@@ -529,7 +546,7 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
       {
         var location = gl.getUniformLocation(programInfo.program, glob_uni_info[gu_index].name);
         
-        add_uniform(gl,location,glob_uni_info[gu_index].value,glob_uni_info[gu_index].type);
+        add_uniform(gl,location,glob_uni_info[gu_index]);
    
       } 
   }
@@ -616,50 +633,23 @@ function loadShader(gl, type, source) {
 }
 
 
-function add_uniform(gl,location,value,type){
-  switch (type){
-      case "float": 
-      {gl.uniform1f(location,value);
-        break;}
-      case "float[9]":
-      {
-        gl.uniform1fv(location,value);
-        break;
-      }
-      case "float[25]":
-      {
-        gl.uniform1fv(location,value);
-        break;
-      }
-      case "float[49]":
-      {
-        gl.uniform1fv(location,value);
-        break;
-      }
-      case "vec2[9]":
-      {  
-        gl.uniform2fv(location,value);
-        break;
-      } 
-       case "vec2[25]":
-      {  
-        gl.uniform2fv(location,value);
-        break;
-      } 
-       case "vec2[49]":
-      {  
-        gl.uniform2fv(location,value);
-        break;
-      } 
-      case "int":
-        {
-          gl.uniform1i(location,value);
-          break;
-        }
-      case "vec2":
-        {
-          gl.uniform1fv(location,value);
-          break;
-        } 
- }
+function add_uniform(gl,location,uniform_variable){
+  if (uniform_variable.dim[0] == 1 && uniform_variable.dim[1] == 1)
+  {
+    switch (uniform_variable.type){
+      case "float":  {gl.uniform1f(location,uniform_variable.value); break;}
+      case "int":    {gl.uniform1i(location,uniform_variable.value); break;}
+    }
+  }
+
+  else if (uniform_variable.dim[1] > 1)
+  {
+    switch (uniform_variable.dim[0]){
+      case 1:  {gl.uniform1fv(location,uniform_variable.value); break;}
+      case 2:  {gl.uniform2fv(location,uniform_variable.value); break;}
+      case 3:  {gl.uniform3fv(location,uniform_variable.value); break;}
+    }
+  }
+  else
+    gl.uniform1fv(location,uniform_variable.value);
 }
