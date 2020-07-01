@@ -16,8 +16,8 @@ filter.set_cap({id: "CodecID", value: "raw", inout: true} );
 filter.set_arg({ name: "depth", desc: "output depth rather than color", type: GF_PROP_BOOL, def: "false"} );
 
 let use_primary = false;
-let width=600;
-let height=400;
+let width=600.0;
+let height=400.0;
 let ipid=null;
 let opid=null;
 let nb_frames=0;
@@ -37,9 +37,12 @@ let kernel=[1.0/16.0, 2.0/16.0, 1.0/16.0,
         2.0/16.0, 4.0/16.0, 2.0/16.0,
         1.0/16.0, 2.0/16.0, 1.0/16.0 ];
 
-let offset1=[-step_w, -step_h, 0.0, -step_h, step_w, -step_h, 
+let offset2=[-step_w, -step_h, 0.0, -step_h, step_w, -step_h, 
         -step_w, 0.0, 0.0, 0.0, step_w, 0.0, 
         -step_w, step_h, 0.0, step_h, step_w, step_h];
+let offset1=[-1.0, -1.0, 0.0, -1.0, 1.0, -1.0, 
+        -1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 
+        -1.0, 1.0, 0.0, 1.0, 1.0, 1.0];
 
 filter.initialize = function() {
 
@@ -135,7 +138,7 @@ void main() {
 
 const fsSource = `
 varying vec2 vTextureCoord;
-
+uniform vec2 u_dim;
 uniform sampler2D vidTx;
 uniform float[9] u_kernell;
 uniform vec2[9] u_offset11;
@@ -146,16 +149,20 @@ void main(void) {
   vec4 sum = vec4(0.0);
   vec2 tx= vTextureCoord;
   tx.y = 1.0 - tx.y;
+  
+  for(i=0; i<9;i++){
+        
+        // vec2 a=vec2(0.0);
+        // a.x=u_offset11[i].x/u_dim.x;
+        // a.y=u_offset11[i].y/u_dim.y;
 
-  
-   
- 
-  for( i=0; i<9; i++ )
-  {
-    vec4 tmp = texture2D(vidTx, tx + u_offset11[i]);
-    sum += tmp * u_kernell[i];
-  }
-  
+        vec4 tmp = texture2D(vidTx, tx +u_offset11[i]/u_dim);\n
+
+        sum.rgb += tmp.rgb * u_kernell[i];    
+
+      }
+    
+  sum.a=1.0;
 
   gl_FragColor = sum;
 }
@@ -176,7 +183,7 @@ function setupProgram(gl, vsSource, fsSource)
       projectionMatrix: gl.getUniformLocation(shaderProgram, 'uProjectionMatrix'),
       modelViewMatrix: gl.getUniformLocation(shaderProgram, 'uModelViewMatrix'),
       txVid: gl.getUniformLocation(shaderProgram, 'vidTx'),
-      
+      dim: gl.getUniformLocation(shaderProgram,'u_dim'),
       kernell: gl.getUniformLocation(shaderProgram, 'u_kernell'),
       offset11: gl.getUniformLocation(shaderProgram, 'u_offset11'),
     },
@@ -303,8 +310,9 @@ function drawScene(gl, programInfo, buffers) {
   //gl.activeTexture(gl.TEXTURE0);
   //gl.bindTexture(gl.TEXTURE_2D, texture);
   //gl.uniform1i(programInfo.uniformLocations.txLogo, 0);
+let dim=[width,height];
 
-
+  gl.uniform2fv(programInfo.uniformLocations.dim,dim);
   //set video texture
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, pck_tx);
@@ -347,6 +355,9 @@ function loadTexture(gl) {
 function initShaderProgram(gl, vsSource, fsSource) {
   const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
   const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+  if (!vertexShader || !fragmentShader) 
+      return null;
 
   const shaderProgram = gl.createProgram();
   gl.attachShader(shaderProgram, vertexShader);

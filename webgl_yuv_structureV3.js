@@ -96,9 +96,10 @@ function kernel_convolution(name, kernel, offset_size, offset) {
     for( i=0; i<u_off_size; i++ )\n
     {\n
       for( j=0; j<u_off_size; j++ )\n
+      
       {\n
         vec4 tmp = texture2D(current_texture, tx + u_offset[i*u_off_size+j]/ u_dim);\n
-        sum.rgb += tmp.rgb * u_kernell[i];      \n
+        sum.rgb += tmp.rgb * u_kernell[i*u_off_size+j];      \n
       }\n
     }\n
     
@@ -137,10 +138,10 @@ let slices = [];
 let list_fs_info = [];
 
 
-effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
-//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
-effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
-//effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
+//effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
+effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
+effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
   
 
 
@@ -352,12 +353,14 @@ function create_fs(effects_list, index_slice, sampler2D_name){
 
     for (var glob_u_index =0; glob_u_index< glob_uni_info.length  ;glob_u_index++)   // add general uniforms   // we see for each global uniform if it' not yet added 
                                                                                                                 //and if it is used for this effect
-    {
+    { 
+
       var uniform_variable = glob_uni_info[glob_u_index];
 
       if (!(global_uniforms_in_use_names.includes(uniform_variable.name)) && effects_list[effect_index].global_uniforms_in_use_names.includes(uniform_variable.name))
       {
-        global_uniforms_in_use_names.push(uniform_variable);
+        
+        global_uniforms_in_use_names.push(uniform_variable.name);
 
         s += 'uniform '+ uniform_variable.type + ((uniform_variable.dim[0]==1) ? '' : uniform_variable.dim[0]);
 
@@ -397,7 +400,6 @@ function create_fs(effects_list, index_slice, sampler2D_name){
   gl_FragColor = vid;
   }
   `;
-
   return {
     source : s, 
     specefic_uniforms : specefic_uniforms, 
@@ -407,6 +409,7 @@ function create_fs(effects_list, index_slice, sampler2D_name){
 
 function setupProgram(gl, vsSource, fs_info, sampler2D_name)
 {
+
 
   const shaderProgram = initShaderProgram(gl, vsSource, fs_info.source);
 
@@ -474,11 +477,9 @@ function initBuffers(gl) {
 function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
 
   let frameBuff = null;
-  
   if (out_texture == -1) {frameBuff = null;}
   else if (out_texture == 0) {frameBuff = FBOs.FBO0.fb;}
   else if (out_texture == 1) {frameBuff = FBOs.FBO1.fb;}
-
   gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuff);
 
   gl.viewport(0, 0, width, height);
@@ -653,11 +654,14 @@ function add_uniform(gl,location,uniform_variable){
   else if (uniform_variable.dim[1] > 1)
   {
     switch (uniform_variable.dim[0]){
+
+
       case 1:  {gl.uniform1fv(location,uniform_variable.value); break;}
       case 2:  {gl.uniform2fv(location,uniform_variable.value); break;}
       case 3:  {gl.uniform3fv(location,uniform_variable.value); break;}
     }
   }
   else
-    gl.uniform1fv(location,uniform_variable.value);
+      gl.uniform2fv(location,uniform_variable.value);
+    
 }
