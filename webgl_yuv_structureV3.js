@@ -34,8 +34,8 @@ let FBOs = null;
 
 
 let  glob_uni_info = [ 
-          {u_name: "nb_frames", type:'int', value: nb_frames},
-          {u_name: "u_dim", type: "vec2", value: [width, height]},
+          {name: "u_nb_frames", type:'int', value: nb_frames},
+          {name: "u_dim", type: "vec2", value: [width, height]},
         ];;
 
 
@@ -64,7 +64,7 @@ function simple_linear_transformation(name, transformation_matrix) { // res.rgb 
   }
   `;
 
-  this.update_source = function(standard_unifo_nam, prefix) { this.source = this.source.replaceAll(standard_unifo_nam,prefix+'_'+standard_unifo_nam); }
+  this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+'_'+standard_unifo_nam);}
 
 };
 
@@ -77,7 +77,7 @@ function kernel_convolution(name, kernel, offset_size, offset) {
   this.effect_uniforms = [
                 {name: "u_kernell", type: "float["+offset_size+"]", value: kernel},
                 {name: "u_offset", type: "vec2["+offset_size+"]", value: offset},
-                {name: "u_offset_size", type: "float", value: offset},
+                {name: "u_off_size", type: "int", value: offset},
 
   ];
   
@@ -86,16 +86,16 @@ function kernel_convolution(name, kernel, offset_size, offset) {
   this.require_fbo = true; 
 
   this.source = `
-  vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
+  vec4 `+name+`(vec4 pxcolor, sampler2D current_texture, vec2 tx) {\n
     vec4 sum = vec4(0.0);\n
-    sum.a = v.a;\n
+    sum.a = pxcolor.a;\n
     int i = 0;\n
     int j = 0;\n
-    for( i=0; i<u_offset_size; i++ )\n
+    for( i=0; i<u_off_size; i++ )\n
     {\n
-      for( j=0; j<u_offset_size; j++ )\n
+      for( j=0; j<u_off_size; j++ )\n
       {\n
-        vec4 tmp = texture2D(vidTx, tx + u_offset[i*u_offset_size+j]/ u_dim);\n
+        vec4 tmp = texture2D(current_texture, tx + u_offset[i*u_off_size+j]/ u_dim);\n
         sum.rgb += tmp.rgb * u_kernell[i];      \n
       }\n
     }\n
@@ -104,7 +104,7 @@ function kernel_convolution(name, kernel, offset_size, offset) {
   }
   `;
 
-  this.update_source = function(standard_unifo_nam, prefix) { this.source = this.source.replaceAll(standard_unifo_nam, prefix+'_'+standard_unifo_nam); }
+  this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+'_'+standard_unifo_nam);}
 };
 
 
@@ -135,10 +135,10 @@ let slices = [];
 let list_fs_info = [];
 
 
-effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
+//effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
 effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
-effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
-effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
+//effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
+//effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
   
 
   // detect slices
@@ -237,8 +237,8 @@ filter.update_arg = function(name, val)
 filter.process = function()
 {
   glob_uni_info = [ 
-          {u_name: "nb_frames", type:'int', value: nb_frames},
-          {u_name: "u_dim", type: "vec2", value: [width, height]},
+          {name: "u_nb_frames", type:'int', value: nb_frames},
+          {name: "u_dim", type: "vec2", value: [width, height]},
         ];
   let ipck = ipid.get_packet();
   if (!ipck) return GF_OK;
@@ -329,7 +329,6 @@ function create_fs(effects_list, index_slice, sampler2D_name){
     {
       effects_list[effect_index].update_source(effects_list[effect_index].effect_uniforms[spec_u_index].name, 'fx_'+effect_index);
       effects_list[effect_index].effect_uniforms[spec_u_index].name = 'fx_'+effect_index+'_'+effects_list[effect_index].effect_uniforms[spec_u_index].name;
-      
       specefic_uniforms.push(effects_list[effect_index].effect_uniforms[spec_u_index]);
       s += 'uniform '+ effects_list[effect_index].effect_uniforms[spec_u_index].type +' '+effects_list[effect_index].effect_uniforms[spec_u_index].name+`;\n`;
     }  
@@ -360,14 +359,16 @@ function create_fs(effects_list, index_slice, sampler2D_name){
     s += `
     tx_coord.y = 1.0 - tx_coord.y;
     `;
-  
-  s += `
-  vec4 vid = texture2D(`+sampler2D_name+`, tx_coord);
-  `;
 
+  s += "\nvec4 vid = texture2D("+sampler2D_name+",tx_coord);\n";
+
+  
   for (var effect_index =index_slice[0];effect_index<index_slice[1];effect_index++)
   {   
-    s += 'vid = ' + effects_list[effect_index].name +'(vid, tx_coord);\n';
+    if (effects_list[effect_index].require_fbo)
+      s += 'vid = ' + effects_list[effect_index].name +'(vid, '+sampler2D_name+', tx_coord);\n';
+    else
+      s += 'vid = ' + effects_list[effect_index].name +'(vid, tx_coord);\n';
   }
 
   s+= `
