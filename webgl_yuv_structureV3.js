@@ -32,6 +32,9 @@ let buffers = null;
 let FBOs = null;
 
 
+// #########################################################################################
+// #########################################################################################
+// Déclaration des filtres
 
 let  glob_uni_info = [ 
           {name: "u_nb_frames", type:'int', dim: [1,1], value: nb_frames},
@@ -67,7 +70,6 @@ function simple_linear_transformation(name, transformation_matrix) { // res.rgb 
   this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+'_'+standard_unifo_nam);}
 
 };
-
 
 
 function kernel_convolution(name, kernel, offset_size, offset) { 
@@ -140,6 +142,12 @@ effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_ma
 effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
 //effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
   
+
+
+
+// #########################################################################################
+// #########################################################################################
+
 
   // detect slices
 var one_slice = [0];
@@ -237,9 +245,9 @@ filter.update_arg = function(name, val)
 filter.process = function()
 {
   glob_uni_info = [ 
-          {name: "u_nb_frames", type:'int', value: nb_frames},
-          {name: "u_dim", type: "vec2", value: [width, height]},
-        ];
+          {name: "u_nb_frames", type:'int', dim: [1,1], value: nb_frames},
+          {name: "u_dim", type: "vec", dim: [2,1], value: [width, height]},
+        ];;
   let ipck = ipid.get_packet();
   if (!ipck) return GF_OK;
   if (filter.frame_pending) {
