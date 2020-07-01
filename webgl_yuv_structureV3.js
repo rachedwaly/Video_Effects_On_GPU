@@ -39,7 +39,7 @@ let FBOs = null;
 let  glob_uni_info = [ 
           {name: "u_nb_frames", type:'int', dim: [1,1], value: nb_frames},
           {name: "u_dim", type: "vec", dim: [2,1], value: [width, height]},
-        ];;
+        ];
 
 
 function simple_linear_transformation(name, transformation_matrix) { // res.rgb = transformation_matrix*pxcolor.rgb
@@ -642,8 +642,8 @@ function loadShader(gl, type, source) {
 }
 
 
-function add_uniform(gl,location,uniform_variable){
-  if (uniform_variable.dim[0] == 1 && uniform_variable.dim[1] == 1)
+function add_uniform(gl,location,uniform_variable){                 // to be updated if other types are considered
+  if (uniform_variable.dim[0] == 1 && uniform_variable.dim[1] == 1)  // scalar
   {
     switch (uniform_variable.type){
       case "float":  {gl.uniform1f(location,uniform_variable.value); break;}
@@ -651,17 +651,26 @@ function add_uniform(gl,location,uniform_variable){
     }
   }
 
-  else if (uniform_variable.dim[1] > 1)
+  else  // vec , array of scalar or array of vec
   {
-    switch (uniform_variable.dim[0]){
-
-
-      case 1:  {gl.uniform1fv(location,uniform_variable.value); break;}
-      case 2:  {gl.uniform2fv(location,uniform_variable.value); break;}
-      case 3:  {gl.uniform3fv(location,uniform_variable.value); break;}
+    if (uniform_variable.type == "float" || uniform_variable.type == "vec")
+    {
+        switch (uniform_variable.dim[0]){
+          case 1:  {gl.uniform1fv(location,uniform_variable.value); break;}
+          case 2:  {gl.uniform2fv(location,uniform_variable.value); break;}
+          case 3:  {gl.uniform3fv(location,uniform_variable.value); break;}
+        }
     }
+    else if (uniform_variable.type == "float" || uniform_variable.type == "vec")
+    {
+        switch (uniform_variable.dim[0]){
+          case 1:  {gl.uniform1iv(location,uniform_variable.value); break;}
+          case 2:  {gl.uniform2iv(location,uniform_variable.value); break;}
+          case 3:  {gl.uniform3iv(location,uniform_variable.value); break;}
+        }
+    }
+
+
   }
-  else
-      gl.uniform2fv(location,uniform_variable.value);
-    
 }
+    
