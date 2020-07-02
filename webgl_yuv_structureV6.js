@@ -39,8 +39,149 @@ let FBOs = null;
 let  glob_uni_info = [ 
           {name: "u_nb_frames", type:'int', dim: [1,1], value: nb_frames},
           {name: "u_dim", type: "vec", dim: [2,1], value: [width, height]},
+          {name: "u_nb_frames_normalized", type: "float", dim: [1,1], value: (nb_frames%100)/100},
         ];;
 
+
+
+function linear_transformation_per_zones_v(name, transformation_matrix, a=1,b=1) { // res.rgb = transformation_matrix*pxcolor.rgb
+  
+  this.name = name;
+  
+  this.effect_uniforms = [
+              {name: "u_tr_mat", type: "float", dim: [1,9], value: transformation_matrix},
+              
+
+  ]; 
+
+  this.global_uniforms_in_use_names = ["u_nb_frames_normalized"];
+  
+  this.require_fbo = (a != 1) || (b != 1);;
+  this.require_texture = false;
+
+  this.alpha=[1,1];
+
+  this.source = `
+  vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
+    
+   
+    
+    vec4 res = vec4(0.0, 0.0, 0.0, pxcolor.a);\n
+    
+    if (tx.x <u_nb_frames_normalized && tx.y<u_nb_frames_normalized){
+    res.r = u_tr_mat[3]*pxcolor.g + u_tr_mat[4]*pxcolor.r + u_tr_mat[5]*pxcolor.b;
+    res.g = u_tr_mat[0]*pxcolor.g + u_tr_mat[1]*pxcolor.r + u_tr_mat[2]*pxcolor.b;
+    res.b = u_tr_mat[6]*pxcolor.g + u_tr_mat[7]*pxcolor.r + u_tr_mat[8]*pxcolor.b;
+    
+    }
+
+   if (tx.x <u_nb_frames_normalized && tx.y>u_nb_frames_normalized){
+     res.r = u_tr_mat[0]*pxcolor.r + u_tr_mat[1]*pxcolor.g + u_tr_mat[2]*pxcolor.b;
+     res.g = u_tr_mat[3]*pxcolor.r + u_tr_mat[4]*pxcolor.g + u_tr_mat[5]*pxcolor.b;
+     res.b = u_tr_mat[6]*pxcolor.r + u_tr_mat[7]*pxcolor.g + u_tr_mat[8]*pxcolor.b;
+     
+    }
+
+
+   if (tx.x >u_nb_frames_normalized && tx.y<u_nb_frames_normalized){
+     res.r = u_tr_mat[0]*pxcolor.r + u_tr_mat[1]*pxcolor.b + u_tr_mat[2]*pxcolor.g;
+     res.g = u_tr_mat[6]*pxcolor.r + u_tr_mat[7]*pxcolor.b + u_tr_mat[8]*pxcolor.g;
+     res.b = u_tr_mat[3]*pxcolor.r + u_tr_mat[4]*pxcolor.b + u_tr_mat[5]*pxcolor.g;
+     
+    }
+
+   if (tx.x>u_nb_frames_normalized && tx.y>u_nb_frames_normalized){
+     
+     res.r=(pxcolor.r+pxcolor.g+pxcolor.b)/3.0;
+     res.g=(pxcolor.r+pxcolor.g+pxcolor.b)/3.0;
+     res.b=(pxcolor.r+pxcolor.g+pxcolor.b)/3.0;
+     
+    }
+
+
+    return res;\n
+  }
+  `;
+
+  this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+standard_unifo_nam);}
+  this.update_uniforms_values = function(indexList, valueList) {
+    for (var i=0; i< indexList.length; i++)
+      this.effect_uniforms[indexList[i]].value = valueList[i];
+  }
+  this.update_special_info = function(indexList, valueList) {
+    for (var i=0; i< indexList.length; i++)
+      this.effect_uniforms[indexList[i]].special_info = valueList[i];
+  }
+};
+
+function linear_transformation_per_zones(name, transformation_matrix,w,v,a=1,b=1) { // res.rgb = transformation_matrix*pxcolor.rgb
+  
+  this.name = name;
+  
+  this.effect_uniforms = [
+              {name: "u_tr_mat", type: "float", dim: [1,9], value: transformation_matrix},
+              {name:"u_w",type:"float",dim: [1,1], value:w},
+              {name:"u_v",type:"float",dim: [1,1], value:v},
+
+  ]; 
+
+  this.global_uniforms_in_use_names = [];
+  
+  this.require_fbo = (a != 1) || (b != 1);;
+  this.require_texture = false;
+
+  this.alpha=[1,1];
+
+  this.source = `
+  vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
+    
+    vec4 res = vec4(0.0, 0.0, 0.0, pxcolor.a);\n
+    
+    if (tx.x <u_w && tx.y<u_v){
+    res.r = u_tr_mat[3]*pxcolor.g + u_tr_mat[4]*pxcolor.r + u_tr_mat[5]*pxcolor.b;
+    res.g = u_tr_mat[0]*pxcolor.g + u_tr_mat[1]*pxcolor.r + u_tr_mat[2]*pxcolor.b;
+    res.b = u_tr_mat[6]*pxcolor.g + u_tr_mat[7]*pxcolor.r + u_tr_mat[8]*pxcolor.b;
+    
+    }
+
+   if (tx.x <u_w && tx.y>u_v){
+     res.r = u_tr_mat[0]*pxcolor.r + u_tr_mat[1]*pxcolor.g + u_tr_mat[2]*pxcolor.b;
+     res.g = u_tr_mat[3]*pxcolor.r + u_tr_mat[4]*pxcolor.g + u_tr_mat[5]*pxcolor.b;
+     res.b = u_tr_mat[6]*pxcolor.r + u_tr_mat[7]*pxcolor.g + u_tr_mat[8]*pxcolor.b;
+     
+    }
+
+
+   if (tx.x > u_w && tx.y< u_v){
+     res.r = u_tr_mat[0]*pxcolor.r + u_tr_mat[1]*pxcolor.b + u_tr_mat[2]*pxcolor.g;
+     res.g = u_tr_mat[6]*pxcolor.r + u_tr_mat[7]*pxcolor.b + u_tr_mat[8]*pxcolor.g;
+     res.b = u_tr_mat[3]*pxcolor.r + u_tr_mat[4]*pxcolor.b + u_tr_mat[5]*pxcolor.g;
+     
+    }
+
+   if (tx.x> u_w && tx.y> u_v){
+     
+     res.r=(pxcolor.r+pxcolor.g+pxcolor.b)/3.0;
+     res.g=(pxcolor.r+pxcolor.g+pxcolor.b)/3.0;
+     res.b=(pxcolor.r+pxcolor.g+pxcolor.b)/3.0;
+     
+    }
+
+
+    return res;\n
+  }
+  `;
+
+  this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+standard_unifo_nam);}
+  this.update_uniforms_values = function(indexList, valueList) {
+    for (var i=0; i< indexList.length; i++)
+      this.effect_uniforms[indexList[i]].value = valueList[i];
+  }
+  this.update_special_info = function(indexList, valueList) {
+    for (var i=0; i< indexList.length; i++)
+      this.effect_uniforms[indexList[i]].special_info = valueList[i];
+  }
+};
 
 function simple_linear_transformation(name, transformation_matrix, a=1, b=1) { // res.rgb = transformation_matrix*pxcolor.rgb
   
@@ -200,22 +341,41 @@ function texture_mask(name, filename, mix_coef =0.5, a=1, b=1) { // res.rgb = tr
 let tr_mat_gray_scale = [ 1.0/3.0, 1.0/3.0, 1.0/3.0,
                           1.0/3.0, 1.0/3.0, 1.0/3.0,
                           1.0/3.0, 1.0/3.0, 1.0/3.0 ];
+
 let tr_mat_inv_rb = [ 0.0, 0.0, 1.0,
                       0.0, 1.0, 0.0,
                       1.0, 0.0, 0.0];
 
-
+let tr_mat_zones=[1.0/16.0, 2.0/16.0, 1.0/16.0,              
+                  2.0/16.0, 4.0/16.0, 2.0/16.0,              
+                  1.0/16.0, 2.0/16.0, 1.0/16.0 ];
 // kernel convolutions
-let offset33 = [-1.0, -1.0,   0.0, -1.0,   1.0, -1.0,
-                -1.0,  0.0,   0.0,  0.0,   1.0,  0.0,
-                -1.0,  1.0,   0.0,  1.0,   1.0,  1.0];
+
 
 let kernel_avg = [  1.0/9.0, 1.0/9.0, 1.0/9.0,
                     1.0/9.0, 1.0/9.0, 1.0/9.0,
                     1.0/9.0, 1.0/9.0, 1.0/9.0 ];
+
 let kernel_lap =[0.0, -1.0,  0.0,
                 -1.0,  4.0, -1.0,
-                 0.0, -1.0,  0.0];
+                 0.0, -1.0,  0.0,];
+
+
+let kernel_sobel=[-1.0, 0.0, 1.0,             
+                  -2.0, 0.0, 2.0,             
+                  -1.0, 0.0, 1.0];
+
+
+
+let kernel_prewitt=[-1.0, 0.0, 1.0,
+                    -1.0, 0.0, 1.0,
+                    -1.0, 0.0, 1.0];
+
+// offset matrix
+
+let offset33 = [-1.0, -1.0,   0.0, -1.0,   1.0, -1.0,
+                -1.0,  0.0,   0.0,  0.0,   1.0,  0.0,
+                -1.0,  1.0,   0.0,  1.0,   1.0,  1.0];
 
 
 let effects_list = [];
@@ -226,6 +386,10 @@ let texture_effect_info = [];
 
 
 //effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
+effects_list.push(new linear_transformation_per_zones_v('zones', tr_mat_zones));
+effects_list.push(new linear_transformation_per_zones_v('zones1', tr_mat_zones));
+
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
 
 //effects_list.push(new change_buffer_size('half_size',0.5,0.5));
@@ -381,6 +545,7 @@ filter.process = function()
   glob_uni_info = [ 
           {name: "u_nb_frames", type:'int', dim: [1,1], value: nb_frames},
           {name: "u_dim", type: "vec", dim: [2,1], value: [width, height]},
+          {name:"u_nb_frames_normalized", type:'float', dim :[1,1],value:(nb_frames%100)/100},
         ];
 
   let ipck = ipid.get_packet();
