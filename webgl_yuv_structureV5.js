@@ -222,23 +222,23 @@ let texture_effect_index = [];
 
 effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
 
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
-effects_list.push(new change_buffer_size('half_size',0.5,0.5));
+//effects_list.push(new change_buffer_size('half_size',0.5,0.5));
 
-// effects_list.push(new texture_mask("zall",'index.jpeg'));
-// texture_effect_index.push(0);
+ effects_list.push(new texture_mask("zall",'index.jpeg'));
+ texture_effect_index.push(1);
 
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
 //effects_list.push(new texture_mask('index.jpeg'));
 //texture_effect_index.push(5);
 
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
 
 //effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
 
@@ -270,10 +270,10 @@ slices.push(one_slice);
 
 
 list_fs_info.push(create_fs(effects_list, slices[0] , 'vidTx')); 
-print(list_fs_info[0].source);
+//print(list_fs_info[0].source);
 for (var i=1;i<slices.length; i++){
     list_fs_info.push(create_fs(effects_list, slices[i] , 'txt1')); 
-    print(list_fs_info[i].source);
+    //print(list_fs_info[i].source);
 }
 
 
@@ -717,7 +717,7 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, FBOs.FBO1.FT.tex);
   }
-  gl.uniform1f(programInfo.uniformLocations.input_texture, 0);
+  gl.uniform1i(programInfo.uniformLocations.input_texture, 0);
 
   //bind indices and draw
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
@@ -790,10 +790,9 @@ function add_uniform(gl,location,uniform_variable){
       case "sampler2D": 
       {
         var index_tx = pck_tx.nb_textures + uniform_variable.special_info;
-        print(index_tx, uniform_variable.name);
         gl.activeTexture(gl.TEXTURE0+index_tx);
         gl.bindTexture(gl.TEXTURE_2D, uniform_variable.value);
-        gl.uniform1f(location, index_tx);
+        gl.uniform1i(location, index_tx);
       }
     }
   }
