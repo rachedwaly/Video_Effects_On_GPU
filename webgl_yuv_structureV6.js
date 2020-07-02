@@ -52,7 +52,7 @@ function simple_linear_transformation(name, transformation_matrix, a=1, b=1) { /
 
   this.global_uniforms_in_use_names = [];
   
-  this.require_fbo = (a != 1) || (a != 1);;
+  this.require_fbo = (a != 1) || (b != 1);;
   this.require_texture = false;
 
   this.alpha=[a,b];
@@ -161,19 +161,20 @@ function change_buffer_size(name, a,b) { // res.rgb = transformation_matrix*pxco
 
 };
 
-function texture_mask(name, filename, a=1, b=1) { // res.rgb = transformation_matrix*pxcolor.rgb
+function texture_mask(name, filename, mix_coef =0.5, a=1, b=1) { // res.rgb = transformation_matrix*pxcolor.rgb
   
   this.name = name;
 
   this.filename = filename;
 
-  this.require_fbo = (a != 1) || (a != 1);
+  this.require_fbo = (a != 1) || (b != 1);
   this.require_texture = true;
 
   this.alpha=[a,b];
   
   this.effect_uniforms = [
         {name: "txmask", type: "sampler2D", dim: [1,1], value: null, special_info : null},
+        {name: "u_mix_coef", type: "float", dim: [1,1], value: mix_coef, special_info : null},
   ]; 
 
   this.global_uniforms_in_use_names = [];
@@ -181,7 +182,7 @@ function texture_mask(name, filename, a=1, b=1) { // res.rgb = transformation_ma
   this.source = `
   vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
     vec4 mask_v = texture2D(txmask, tx);
-    return (pxcolor * mask_v) ;\n
+    return mix(pxcolor,mask_v,u_mix_coef) ;\n
   }
   `;
   this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+standard_unifo_nam);}
@@ -228,13 +229,13 @@ let texture_effect_info = [];
 
 
 //effects_list.push(new change_buffer_size('half_size',0.5,0.5));
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
-effects_list.push(new change_buffer_size('half', 0.5, 0.5));
-for (var i=1; i<3; i++)
-  effects_list.push(new texture_mask("zall"+i,'index'+i+'.jpeg'));
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+//effects_list.push(new change_buffer_size('half11', 0.5, 0.5));
+for (var i=4; i<5; i++)
+  effects_list.push(new texture_mask("zall"+i,'index'+i+'.jpeg', 0.1));
 
-effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
-  
+//effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+
 
 
 
@@ -275,10 +276,17 @@ for (var effect_index=1; effect_index<effects_list.length; effect_index++)
 
   }  
 }
+one_slice.push(effects_list.length);
+slices.push(one_slice);
+print(slices);
 // #########################################################################################
 // #########################################################################################
 
 
+
+// #########################################################################################
+// #########################################################################################
+// assemblage des différents fragment shaders
 
 list_fs_info.push(create_fs(effects_list, slices[0] , 'vidTx')); 
 print(list_fs_info[0].source);
@@ -287,7 +295,8 @@ for (var i=1;i<slices.length; i++){
     print(list_fs_info[i].source);
 }
 
-
+// #########################################################################################
+// #########################################################################################
 
 
 function createTextureAndFramebuffer(gl, w, h) {
