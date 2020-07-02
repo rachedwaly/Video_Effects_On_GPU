@@ -52,7 +52,7 @@ function simple_linear_transformation(name, transformation_matrix, a=1, b=1) { /
 
   this.global_uniforms_in_use_names = [];
   
-  this.require_fbo = (a!=1 || b!=1);
+  this.require_fbo = (a != 1) || (a != 1);;
   this.require_texture = false;
 
   this.alpha=[a,b];
@@ -79,7 +79,8 @@ function simple_linear_transformation(name, transformation_matrix, a=1, b=1) { /
     for (var i=0; i< indexList.length; i++)
       this.effect_uniforms[indexList[i]].special_info = valueList[i];
   }
-}; 
+};
+
 
 function kernel_convolution(name, kernel, offset_size, offset, a=1, b=1) { 
   
@@ -94,7 +95,7 @@ function kernel_convolution(name, kernel, offset_size, offset, a=1, b=1) {
   
   this.global_uniforms_in_use_names = ["u_dim"];
 
-  this.require_fbo = true; 
+  this.require_fbo = true;
   this.require_texture = false;
   this.alpha=[a,b];
 
@@ -166,6 +167,9 @@ function texture_mask(name, filename, a=1, b=1) { // res.rgb = transformation_ma
 
   this.filename = filename;
 
+  this.require_fbo = (a != 1) || (a != 1);
+  this.require_texture = true;
+
   this.alpha=[a,b];
   
   this.effect_uniforms = [
@@ -174,15 +178,10 @@ function texture_mask(name, filename, a=1, b=1) { // res.rgb = transformation_ma
 
   this.global_uniforms_in_use_names = [];
   
-  this.require_fbo = (a!=1 || b!=1);
-
-  this.require_texture = true;
-  
   this.source = `
   vec4 `+name+`(vec4 pxcolor, vec2 tx) {\n
     vec4 mask_v = texture2D(txmask, tx);
-    pxcolor.a = mask_v.a;
-    return pxcolor;\n
+    return (pxcolor * mask_v) ;\n
   }
   `;
   this.update_source = function(standard_unifo_nam, prefix) {this.source = this.source.replaceAll(standard_unifo_nam, prefix+standard_unifo_nam);}
@@ -209,73 +208,46 @@ let tr_mat_inv_rb = [ 0.0, 0.0, 1.0,
 let offset33 = [-1.0, -1.0,   0.0, -1.0,   1.0, -1.0,
                 -1.0,  0.0,   0.0,  0.0,   1.0,  0.0,
                 -1.0,  1.0,   0.0,  1.0,   1.0,  1.0];
+
 let kernel_avg = [  1.0/9.0, 1.0/9.0, 1.0/9.0,
                     1.0/9.0, 1.0/9.0, 1.0/9.0,
-                    1.0/9.0, 1.0/9.0, 1.0/9.0 ];                    
+                    1.0/9.0, 1.0/9.0, 1.0/9.0 ];
 let kernel_lap =[0.0, -1.0,  0.0,
                 -1.0,  4.0, -1.0,
                  0.0, -1.0,  0.0];
-let kernel_Sobel=[-1.0, 0.0, 1.0,
-                  -2.0, 0.0, 2.0,
-                  -1.0, 0.0, 1.0];
-let kernel_laplacien=[0.0, -1.0, .0,
-                    -1.0, 4.0, -1.0,
-                    0.0, -1.0, 0.0];
-let kernel_prewitt=[-1.0, 0.0, 1.0,
-                      -1.0, 0.0, 1.0,
-                      -1.0, 0.0, 1.0];
-let kernel_nettete=[0.0, -1.0, 0.0,
-                   -1.0, 5.0, -1.0,
-                    0.0, -1.0, 0.0];
-
 
 
 let effects_list = [];
 let slices = [];
 let list_fs_info = [];
+
 let texture_effect_info = [];
 
 
-effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
+//effects_list.push(new simple_linear_transformation('inversion_rouge_bleu', tr_mat_inv_rb));
 
-/*
-effects_list.push(new change_buffer_size('half_size',0.5,0.5));
 
-effects_list.push(new texture_mask("zall",'logo.jpg'));
-
+//effects_list.push(new change_buffer_size('half_size',0.5,0.5));
 effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+effects_list.push(new change_buffer_size('half', 0.5, 0.5));
+for (var i=1; i<3; i++)
+  effects_list.push(new texture_mask("zall"+i,'index'+i+'.jpeg'));
 
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
+effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
+  
 
-*/effects_list.push(new texture_mask("zall",'index.jpeg'));
-effects_list.push(new texture_mask("zaall",'index.jpeg'));
-
-
-/*effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
-
-effects_list.push(new change_buffer_size('zall',0.5,0.5));
-
-effects_list.push(new kernel_convolution('moyenneur', kernel_avg, 3, offset33));
-
-//effects_list.push(new simple_linear_transformation('gray_scale', tr_mat_gray_scale));
-
-
-
-//effects_list.push(new kernel_convolution('detection_de_contours', kernel_lap, 3, offset33));
-
-*/
 
 
 // #########################################################################################
 // #########################################################################################
+// determination des slices et suivi des effet à texture supplémentaire
 
-
-  // detect slices  and preprocessing some effect attributes
 var one_slice = [0];
-var current_texture_unit = 2;
+let current_texture_unit = 2;
+
 if (effects_list[0].require_texture) 
 {
-  current_texture_unit = 1;
+  current_texture_unit += 1;
   texture_effect_info.push({index: 0, unit: current_texture_unit});
 } 
 
@@ -299,15 +271,14 @@ for (var effect_index=1; effect_index<effects_list.length; effect_index++)
       one_slice = [effect_index];    
       current_texture_unit = 1;
     }
-
     texture_effect_info.push({index: effect_index, unit: current_texture_unit});
 
   }  
-
 }
-  
-one_slice.push(effects_list.length);
-slices.push(one_slice);
+// #########################################################################################
+// #########################################################################################
+
+
 
 list_fs_info.push(create_fs(effects_list, slices[0] , 'vidTx')); 
 print(list_fs_info[0].source);
@@ -340,14 +311,11 @@ filter.initialize = function() {
   pck_tx = gl.createTexture('vidTx');
 
 
-  for (var tex_eff=0; tex_eff<texture_effect_info.length; tex_eff++)
+  for (var eff=0; eff<texture_effect_info.length; eff++)
   {
-    var current_effect = effects_list[texture_effect_info[tex_eff].index];
-    var img_tx = loadTexture(gl, current_effect.filename);
-    
-    current_effect.update_uniforms_values([0], [img_tx]);
-    
-    current_effect.update_special_info([0], [texture_effect_info[tex_eff].unit]);
+    var img_tx = loadTexture(gl, effects_list[texture_effect_info[eff].index].filename);
+    effects_list[texture_effect_info[eff].index].update_uniforms_values([0], [img_tx]);
+    effects_list[texture_effect_info[eff].index].update_special_info([0], [texture_effect_info[eff].unit]);
   }
 
   
@@ -409,10 +377,12 @@ filter.process = function()
   let ipck = ipid.get_packet();
   if (!ipck) return GF_OK;
   if (filter.frame_pending) {
+//    print('frame pending, waiting');
     return GF_OK;
   }
   gl.activate(true);
 
+//  pck_tx.upload(ipck);
   gl.bindTexture(gl.TEXTURE_2D, pck_tx);
   gl.texImage2D(gl.TEXTURE_2D, 0, 0, 0, 0, ipck);
   if (programs_Info[0] == null)
@@ -767,6 +737,9 @@ function drawScene(gl, programInfo, buffers, in_texture, out_texture) {
   const offset = 0;
 
   gl.drawElements(gl.TRIANGLES, vertexCount, type, offset);
+
+
+  
 }
 
 function loadTexture(gl, filename) {
@@ -785,12 +758,11 @@ function loadTexture(gl, filename) {
   return texture;
 }
 
+//const texture = loadTexture(gl);
 
 function initShaderProgram(gl, vsSource, fsSource) {
   const vertexShader = loadShader(gl, gl.VERTEX_SHADER, vsSource);
   const fragmentShader = loadShader(gl, gl.FRAGMENT_SHADER, fsSource);
-  
-
   if (!vertexShader || !fragmentShader) 
       return null;
 
